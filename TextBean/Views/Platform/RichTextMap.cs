@@ -8,11 +8,12 @@ namespace TextBean.Views.Platform;
 /// <summary>
 /// 서식 문서의 검색용 글자와 [글자 위치 → TextPointer] 대응을 <b>한 걸음에서</b> 만든다 (D-128).
 /// TextRange.Text 로 글자를 뽑고 위치를 따로 세면 둘이 어긋난다 — 그림 · 표 · 문서 끝을 제각각 적는다 [실측].
-/// 문단 사이와 LineBreak 는 "\r\n" 이다. 100만 자 문서에서 한 번 걷는 데 약 45ms [실측].
+/// 문단 사이와 LineBreak 는 "\r\n", 표의 칸 사이는 "\t" 이다. 100만 자 문서에서 한 번 걷는 데 약 45ms [실측].
 /// </summary>
 public sealed class RichTextMap
 {
     private const string NewLine = "\r\n";
+    private const string CellSeparator = "\t";
 
     private readonly List<(int Index, TextPointer Pointer, int Length)> _segments;
 
@@ -46,12 +47,20 @@ public sealed class RichTextMap
                 case TextPointerContext.ElementStart:
                     switch (at.GetAdjacentElement(LogicalDirection.Forward))
                     {
+                        // 표는 TextRange.Text 와 같은 모양이다 — 칸 사이 Tab, 행 사이 · 표 앞뒤 줄바꿈 (D-135).
+                        // 칸의 첫 문단은 행 · 칸 구분이 이미 섰으므로 아무것도 넣지 않는다.
+                        case Paragraph { Parent: TableCell cell } paragraph when ReferenceEquals(cell.Blocks.FirstBlock, paragraph):
+                            break;
                         case Paragraph:
-                            if (!firstParagraph) AddNewLine(text, segments, at);
+                        case TableRow:
+                            if (!firstParagraph) AddSeparator(text, segments, at, NewLine);
                             firstParagraph = false;
                             break;
+                        case TableCell { Parent: TableRow row } cell when !ReferenceEquals(row.Cells[0], cell):
+                            AddSeparator(text, segments, at, CellSeparator);
+                            break;
                         case LineBreak:
-                            AddNewLine(text, segments, at);
+                            AddSeparator(text, segments, at, NewLine);
                             break;
                     }
                     break;
@@ -61,10 +70,10 @@ public sealed class RichTextMap
         return new RichTextMap(text.ToString(), segments);
     }
 
-    private static void AddNewLine(StringBuilder text, List<(int, TextPointer, int)> segments, TextPointer at)
+    private static void AddSeparator(StringBuilder text, List<(int, TextPointer, int)> segments, TextPointer at, string separator)
     {
         segments.Add((text.Length, at, 0));
-        text.Append(NewLine);
+        text.Append(separator);
     }
 
     /// 글자 위치의 TextPointer. 줄바꿈 자리는 그 줄바꿈 앞을 가리킨다. 범위 밖이면 null.

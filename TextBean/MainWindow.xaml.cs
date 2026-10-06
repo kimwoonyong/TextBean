@@ -90,7 +90,13 @@ public partial class MainWindow : Window
         return FindDescendant<TextBoxBase>(host);
     }
 
-    /// 글자색 · 형광펜 목록에서 하나를 고르면 목록을 닫는다. 서식은 단추의 명령이 칠한다 (D-127).
+    /// 서식 본문 우클릭 메뉴 — 표 항목은 표 안일 때만 보인다 (D-132).
+    private void OnBodyContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is RichTextBox { ContextMenu: { } menu } box) RichTable.UpdateMenu(box, menu);
+    }
+
+    /// 글자색 · 형광펜 · 표 목록에서 하나를 고르면 목록을 닫는다. 서식 · 표는 고른 것의 명령이 넣는다 (D-127 · D-131).
     private void OnFormatPopupPick(object sender, RoutedEventArgs e)
     {
         for (var at = sender as DependencyObject; at is not null; at = LogicalTreeHelper.GetParent(at))

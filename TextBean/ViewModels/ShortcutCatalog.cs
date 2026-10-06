@@ -47,6 +47,7 @@ public static class ShortcutCatalog
         new("찾기 칸 다음 / 이전", "Enter / Shift+Enter"),
         new("굵게 · 기울임 · 밑줄", "Ctrl+B · I · U"),
         new("취소선", "Ctrl+Shift+X"),
+        new("표 칸 다음 · 이전", "Tab · Shift+Tab"),
     ];
 
     /// <summary>

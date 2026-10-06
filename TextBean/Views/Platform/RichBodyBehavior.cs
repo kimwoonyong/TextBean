@@ -75,6 +75,7 @@ public static class RichBodyBehavior
         {
             _box = box;
             RichFormat.Attach(box);
+            RichTable.Attach(box);
             foreach (var gesture in BlockedGestures)
                 box.InputBindings.Add(new KeyBinding(ApplicationCommands.NotACommand, gesture));
 
@@ -181,7 +182,23 @@ public static class RichBodyBehavior
 
         private static void OnPasting(object sender, DataObjectPastingEventArgs e)
         {
-            switch (PasteFilter.Choose(e.DataObject))
+            var choice = PasteFilter.Choose(e.DataObject);
+
+            // 칸 안에 표가 든 서식 — 표 안에 표를 만들지 않는다 (D-137)
+            if (choice == PasteChoice.Rich && sender is RichTextBox box)
+            {
+                switch (RichTable.Paste(box, e.DataObject))
+                {
+                    case PasteIntoCell.Overwritten:
+                        e.CancelCommand();
+                        return;
+                    case PasteIntoCell.AsText:
+                        choice = PasteChoice.PlainText;
+                        break;
+                }
+            }
+
+            switch (choice)
             {
                 case PasteChoice.Rich:
                     e.FormatToApply = DataFormats.XamlPackage;

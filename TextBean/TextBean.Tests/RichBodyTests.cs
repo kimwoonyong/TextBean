@@ -395,8 +395,25 @@ public class RichBodyTests
         Assert.True(FindDescendant<Button>(scene.Window, b => b.Command == RichFormat.ToggleStrikethrough && b.IsVisible)!.IsEnabled);   // 도구 모음이 흐리지 않다
         Snapshot(scene.Window, "rich-body");            // TEXTBEAN_TEST_PNG 가 있을 때만
 
+        // 표 (D-131 · D-136) — 문서 끝에 넣고 칸을 채워 그림으로 본다
+        body.CaretPosition = body.Document.ContentEnd;
+        RichTable.InsertTable.Execute("3x3", body);
+        foreach (var word in new[] { "이름", "주소", "계정", "운영 DB", "10.0.0.5", "admin", "메일", "smtp.local", "noreply" })
+        {
+            body.CaretPosition.InsertTextInRun(word);
+            RichTable.NextCell.Execute(null, body);
+        }
+        RichTable.DeleteRow.Execute(null, body);       // 마지막 칸 Tab 으로 늘어난 빈 행
+        scene.Window.UpdateLayout();
+        Snapshot(scene.Window, "rich-table");
+        var picker = (TableSizePicker)((Border)FindAll<System.Windows.Controls.Primitives.Popup>(scene.Window).First(p => p.Name == "TablePopup").Child).Child;
+        picker.Highlight((3, 4));
+        picker.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        picker.Arrange(new Rect(picker.DesiredSize));
+        Snapshot(picker, "table-picker");
+
         // 색 목록 — 팝업은 열지 않고(D-082) 안의 것만 배치해 본다. 크기 없는 색 칸은 단추 가운데로 0×0 이 됐다 [실측 — 사용자 화면]
-        foreach (var popup in FindAll<System.Windows.Controls.Primitives.Popup>(scene.Window).Where(p => p.Child is Border))
+        foreach (var popup in FindAll<System.Windows.Controls.Primitives.Popup>(scene.Window).Where(p => p.Name is "TextColorPopup" or "HighlightPopup"))
         {
             var list = (FrameworkElement)popup.Child;
             list.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));

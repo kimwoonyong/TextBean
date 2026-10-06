@@ -276,11 +276,25 @@
             </Popup>
             <Rectangle Width="1" Height="18" Margin="6,0" Fill="#D3D1C7" />
 
+            <!-- 표 넣기 (D-131) — 8×8 격자에서 고른다 -->
+            <ToggleButton x:Name="TableToggle" Style="{StaticResource FormatToggle}" ToolTip="표 넣기"
+                          IsChecked="{Binding IsOpen, ElementName=TablePopup}">
+              <TextBlock Text="표 ▾" />
+            </ToggleButton>
+            <Popup x:Name="TablePopup" StaysOpen="False" PlacementTarget="{Binding ElementName=TableToggle}">
+              <Border Background="White" BorderBrush="#D3D1C7" BorderThickness="1" Padding="6">
+                <platform:TableSizePicker Command="{x:Static platform:RichTable.InsertTable}"
+                                          CommandTarget="{Binding ElementName=Body}" Picked="OnFormatPopupPick" />
+              </Border>
+            </Popup>
+            <Rectangle Width="1" Height="18" Margin="6,0" Fill="#D3D1C7" />
+
             <Button Style="{StaticResource FormatButton}" Content="서식 지우기"
                     Command="{x:Static platform:RichFormat.ClearFormatting}" CommandTarget="{Binding ElementName=Body}" />
           </StackPanel>
         </Border>
         <RichTextBox x:Name="Body"
+                     ContextMenuOpening="OnBodyContextMenuOpening"
                      IsReadOnly="{Binding IsReadOnly}"
                      platform:RichBodyBehavior.Attach="True"
                      platform:EditorBehavior.InterceptCopy="True"
@@ -294,7 +308,28 @@
             <Style TargetType="Paragraph">
               <Setter Property="Margin" Value="0" />
             </Style>
+            <Style TargetType="MenuItem">
+              <Setter Property="CommandTarget" Value="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            </Style>
           </RichTextBox.Resources>
+          <!-- 우클릭 메뉴 (D-132). 잘라내기 · 복사 · 붙여넣기는 기본 메뉴와 같은 명령 — 복사 가로채기를 그대로 탄다.
+               Tag="table" 항목은 표 안일 때만 보인다(OnBodyContextMenuOpening). -->
+          <RichTextBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="잘라내기" Command="ApplicationCommands.Cut" />
+              <MenuItem Header="복사" Command="ApplicationCommands.Copy" />
+              <MenuItem Header="붙여넣기" Command="ApplicationCommands.Paste" />
+              <Separator Tag="table" />
+              <MenuItem Tag="table" Header="위에 행 넣기" Command="{x:Static platform:RichTable.InsertRowAbove}" />
+              <MenuItem Tag="table" Header="아래에 행 넣기" Command="{x:Static platform:RichTable.InsertRowBelow}" />
+              <MenuItem Tag="table" Header="왼쪽에 열 넣기" Command="{x:Static platform:RichTable.InsertColumnLeft}" />
+              <MenuItem Tag="table" Header="오른쪽에 열 넣기" Command="{x:Static platform:RichTable.InsertColumnRight}" />
+              <Separator Tag="table" />
+              <MenuItem Tag="table" Header="행 지우기" Command="{x:Static platform:RichTable.DeleteRow}" />
+              <MenuItem Tag="table" Header="열 지우기" Command="{x:Static platform:RichTable.DeleteColumn}" />
+              <MenuItem Tag="table" Header="표 지우기" Command="{x:Static platform:RichTable.DeleteTable}" Foreground="#A32D2D" />
+            </ContextMenu>
+          </RichTextBox.ContextMenu>
         </RichTextBox>
       </DockPanel>
     </DataTemplate>
