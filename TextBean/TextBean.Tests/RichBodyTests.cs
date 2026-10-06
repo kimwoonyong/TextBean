@@ -290,12 +290,16 @@ public class RichBodyTests
     public void 앱_안에서_복사한_서식만_서식째_받는다() => Run(() =>
     {
         var box = Attach(new EditorViewModel(TestKeys.Store(Path.GetTempPath()), new FakeClipboard(), new FakeDialogs(), new FakeAutoSaveTimer()));
-        var ours = ClipboardService.BuildDataObject(new ClipboardPayload("값", "{\\rtf1 x}", [1]));
+        var source = new FlowDocument(new Paragraph(new Run("값") { FontWeight = FontWeights.Bold }));
+        var ours = ClipboardService.BuildDataObject(RichBodyBehavior.PayloadOf(new TextRange(source.ContentStart, source.ContentEnd)));
 
         var args = RaisePasting(box, ours, DataFormats.Rtf);
 
-        Assert.False(args.CommandCancelled);
-        Assert.Equal(DataFormats.XamlPackage, args.FormatToApply);
+        Assert.True(args.CommandCancelled);                                   // 기본 붙여넣기 대신 직접 붙였다 (D-154)
+        var pasted = RichTextMap.Build(box.Document);
+        Assert.Contains("값", pasted.Text);
+        var at = pasted.Text.IndexOf('값');
+        Assert.Equal(FontWeights.Bold, new TextRange(pasted.PointerAt(at)!, pasted.PointerAt(at + 1)!).GetPropertyValue(TextElement.FontWeightProperty));
     });
 
     [Fact]
@@ -336,7 +340,7 @@ public class RichBodyTests
         ICommand? Bound(Key key, ModifierKeys modifiers)
             => box.InputBindings.OfType<KeyBinding>().FirstOrDefault(b => b.Key == key && b.Modifiers == modifiers)?.Command;
 
-        Assert.Equal(18, RichBodyBehavior.BlockedGestures.Count);
+        Assert.Equal(16, RichBodyBehavior.BlockedGestures.Count);                 // 글자 크기 둘은 살렸다 (D-152)
         Assert.All(RichBodyBehavior.BlockedGestures, g => Assert.Same(ApplicationCommands.NotACommand, Bound(g.Key, g.Modifiers)));
         Assert.Same(RichFormat.ToggleUnderline, Bound(Key.U, ModifierKeys.Control));
         Assert.Same(RichFormat.ToggleStrikethrough, Bound(Key.X, ModifierKeys.Control | ModifierKeys.Shift));

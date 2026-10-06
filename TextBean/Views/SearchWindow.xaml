@@ -19,7 +19,7 @@
       <TextBox x:Name="QueryBox"
                Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
                IsUndoEnabled="False" AllowDrop="False" Padding="5,4"
-               FontFamily="Cascadia Mono, Consolas, D2Coding" FontSize="13" />
+               FontFamily="{x:Static platform:AppFonts.Body}" FontSize="13" />
     </DockPanel>
 
     <!-- 범위. 착각하면 "금고에 없다"는 거짓 결론이 나오므로 셋을 한눈에 둔다 -->

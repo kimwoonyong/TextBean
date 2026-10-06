@@ -1,6 +1,7 @@
 <Window x:Class="TextBean.Views.Dialogs.KeyPromptDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:platform="clr-namespace:TextBean.Views.Platform"
         Width="440" SizeToContent="Height" WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize" ShowInTaskbar="False">
   <!-- 평소에는 PasswordBox 다. PasswordBox 는 한글 입력기를 강제로 끄고(D-051) 복사·실행취소 기록이 없다.
@@ -49,7 +50,7 @@
       <Setter Property="Visibility" Value="Collapsed" />
       <Setter Property="IsUndoEnabled" Value="False" />
       <Setter Property="InputMethod.IsInputMethodEnabled" Value="False" />
-      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, D2Coding" />
+      <Setter Property="FontFamily" Value="{x:Static platform:AppFonts.Body}" />
     </Style>
   </Window.Resources>
 

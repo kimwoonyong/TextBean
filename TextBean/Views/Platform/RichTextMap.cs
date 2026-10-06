@@ -107,12 +107,49 @@ public sealed class RichTextMap
         return document;
     }
 
+    /// 서식 문서를 연다. 문서에 적힌 글꼴 이름은 지운다 — 늘 본문 글꼴(AppFonts.Body)을 따른다 (D-149).
     public static FlowDocument Load(byte[] package)
     {
         var document = new FlowDocument();
         using var stream = new MemoryStream(package, writable: false);
         new TextRange(document.ContentStart, document.ContentEnd).Load(stream, DataFormats.XamlPackage);
+        ClearFonts(document);
         return document;
+    }
+
+    /// <summary>
+    /// 문서의 모든 글자 요소에서 글꼴 이름을 지운다 (D-149). 저장할 때 블록마다 글꼴 이름이 적혀
+    /// 옛 문서는 옛 글꼴(Cascadia + 대체 한글)로, 앱 안 글꼴로 저장한 문서는 상대 주소(./#D2Coding)로 남는다 [실측].
+    /// 글꼴 고르기 기능이 없으니 지워도 잃는 것이 없다. 본문에 붙이기 전에 부른다 — 붙인 뒤 고치면 실행취소 기록에 끼어든다.
+    /// </summary>
+    public static void ClearFonts(FlowDocument document)
+    {
+        document.ClearValue(TextElement.FontFamilyProperty);
+        Clear(document);
+
+        static void Clear(DependencyObject parent)
+        {
+            foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<TextElement>())
+            {
+                child.ClearValue(TextElement.FontFamilyProperty);
+                Clear(child);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 범위 안에 시작하는 글자 요소의 글꼴 이름만 지운다 — 막 붙여넣은 조각에 쓴다 (D-149 · D-154).
+    /// 복사한 서식은 감싸는 요소에 원래 크기 · 기울임과 함께 상대 주소 글꼴(./#D2Coding)을 싣고, 붙이면 그 값이 넣은 요소에 적힌다.
+    /// 다시 담아 지우면 빈 문서의 기본값(Georgia 16 · 양쪽 정렬)이 박힌다 [실측 — 사용자 화면] — 넣은 뒤 같은 변경 안에서 지운다.
+    /// </summary>
+    public static void ClearFonts(TextPointer start, TextPointer end)
+    {
+        for (var at = start; at is not null && at.CompareTo(end) < 0; at = at.GetNextContextPosition(LogicalDirection.Forward))
+        {
+            if (at.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.ElementStart
+                && at.GetAdjacentElement(LogicalDirection.Forward) is TextElement element)
+                element.ClearValue(TextElement.FontFamilyProperty);
+        }
     }
 
     public static byte[] Save(TextRange range)

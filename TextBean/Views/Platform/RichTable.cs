@@ -298,6 +298,7 @@ public static class RichTable
             stream.Position = position;           // 기본 붙여넣기가 같은 스트림을 다시 읽는다
         }
 
+        RichTextMap.ClearFonts(pasted);                // 옮기는 블록이 상대 주소 글꼴을 들고 칸에 들어가지 않게 (D-154)
         var blocks = Flatten(pasted.Blocks).ToList();
         var tables = blocks.OfType<Table>().ToList();
         if (tables.Count == 0) return PasteIntoCell.NotHandled;

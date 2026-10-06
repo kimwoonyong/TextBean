@@ -90,10 +90,13 @@ public partial class MainWindow : Window
         return FindDescendant<TextBoxBase>(host);
     }
 
-    /// 서식 본문 우클릭 메뉴 — 표 항목은 표 안일 때만 보인다 (D-132).
+    /// 서식 본문 우클릭 메뉴 — 표 항목은 표 안일 때만, 그림 항목은 그림 하나를 골랐을 때만 보인다 (D-132 · D-142).
     private void OnBodyContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        if (sender is RichTextBox { ContextMenu: { } menu } box) RichTable.UpdateMenu(box, menu);
+        if (sender is not RichTextBox { ContextMenu: { } menu } box) return;
+
+        RichTable.UpdateMenu(box, menu);
+        RichImage.UpdateMenu(box, menu);
     }
 
     /// 글자색 · 형광펜 · 표 목록에서 하나를 고르면 목록을 닫는다. 서식 · 표는 고른 것의 명령이 넣는다 (D-127 · D-131).

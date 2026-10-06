@@ -89,6 +89,18 @@ public sealed class FakeDialogs : IDialogService
         return PickDocumentResult;
     }
 
+    /// null 이면 취소한 것으로 본다.
+    public string? PickImageFileResult;
+    public int PickImageFileCount { get; private set; }
+
+    public string? PickImageFile()
+    {
+        if (SuppressedNow()) return null;
+
+        PickImageFileCount++;
+        return PickImageFileResult;
+    }
+
     public bool Confirm(string title, string message)
     {
         if (SuppressedNow()) return false;

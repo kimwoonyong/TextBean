@@ -130,6 +130,21 @@ public sealed class DialogService : IDialogService
         return Showing(() => dialog.ShowDialog()) == true ? dialog.FileName : null;
     }
 
+    public string? PickImageFile()
+    {
+        if (Suppressed("pick-image")) return null;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "그림 넣기",
+            Filter = "그림 파일 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return Showing(() => dialog.ShowDialog()) == true ? dialog.FileName : null;
+    }
+
     public bool Confirm(string title, string message)
     {
         if (Suppressed("confirm")) return false;

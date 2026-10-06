@@ -694,5 +694,21 @@ public sealed class EditorViewModel : ObservableObject, IDisposable
 
         _autoSave.Elapsed -= OnAutoSaveElapsed;
         _autoSave.Dispose();
+        Closed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// 탭이 닫혔다. 화면이 이 문서에 쓰려고 메모리에 올린 그림 원본을 내린다 (D-146).
+    public event EventHandler? Closed;
+
+    // ── 그림 넣기 (D-140) ────────────────────────────────────────────────────
+    // 파일 고르기 창과 오류 알림만 맡는다. 파일을 읽는 것은 화면 쪽 ImageFileImport 한 곳이다 (CUSTOM-03 · 05 예외).
+
+    public string? PickImageFile() => _dialogs.PickImageFile();
+
+    /// 문구에 경로 · 파일 이름을 넣지 않는다 — 금고 밖 이름이다 (PROHIBITED-CUSTOM-04).
+    public void ImageInsertFailed(string reason, Exception? cause)
+    {
+        AppLog.Warn("image-import", null, cause);
+        _dialogs.Error("그림 넣기", reason);
     }
 }

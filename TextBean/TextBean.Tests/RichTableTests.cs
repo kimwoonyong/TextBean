@@ -475,15 +475,16 @@ public class RichTableTests
         CaretIn(box, Cell(TableIn(box), 0, 0));
         var inCell = Paste(box, Copied(oneCell.ContentStart.GetInsertionPosition(LogicalDirection.Forward),
                                        oneCell.ContentEnd.GetInsertionPosition(LogicalDirection.Backward)));
-        Assert.False(inCell.CommandCancelled);
-        Assert.Equal(DataFormats.XamlPackage, inCell.FormatToApply);
-        Assert.True(inCell.DataObject.GetData(DataFormats.XamlPackage) is System.IO.Stream { Position: 0 });   // 표가 있나 읽어 본 뒤 되돌렸다 — 기본 붙여넣기가 처음부터 읽는다
+        Assert.True(inCell.CommandCancelled);                                 // 직접 붙였다 (D-154)
+        Assert.Equal(1, TablesIn(box.Document));                              // 칸 하나 안의 글자 — 표가 생기지 않는다
+        Assert.Contains("A", TextOf(Cell(TableIn(box), 0, 0)));
+        Assert.True(inCell.DataObject.GetData(DataFormats.XamlPackage) is System.IO.Stream { Position: 0 });   // 표가 있나 읽어 본 뒤 되돌렸다
 
         box.CaretPosition = box.Document.Blocks.FirstBlock.ContentEnd;           // 표 밖
         var outside = Paste(box, CopiedTable(TableIn(source)));
-        Assert.False(outside.CommandCancelled);
-        Assert.Equal(DataFormats.XamlPackage, outside.FormatToApply);
-        Assert.True(outside.DataObject.GetData(DataFormats.XamlPackage) is System.IO.Stream { Position: 0 });   // 기본 붙여넣기가 처음부터 읽는다
+        Assert.True(outside.CommandCancelled);
+        Assert.Equal(2, box.Document.Blocks.OfType<Table>().Count());          // 표 밖에는 표째 들어간다
+        Assert.Equal(2, TablesIn(box.Document));                              // 표 안에 표는 없다
     });
 
     [Fact]

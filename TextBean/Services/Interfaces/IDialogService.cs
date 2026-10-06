@@ -20,6 +20,9 @@ public interface IDialogService
     /// </summary>
     string? PickDocument(string suggestedFolder, string title);
 
+    /// 그림 파일 하나를 고른다(그림 넣기 — D-140). 금고 밖일 수 있다 — 읽기는 ImageFileImport 한 곳만 한다.
+    string? PickImageFile();
+
     bool Confirm(string title, string message);
 
     void Error(string title, string message);

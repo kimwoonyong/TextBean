@@ -51,6 +51,13 @@
 
     <!-- 트레이 아이콘 그림. 이름은 TrayIcon.cs 의 IconResource 와 같아야 한다 (D-094) -->
     <EmbeddedResource Include="Assets\app.ico" LogicalName="TextBean.TrayIcon.ico" />
+
+    <!-- 본문 글꼴 D2Coding (D-148) — 한글 · 영문을 한 글꼴로 그려야 형광펜 띠가 고르다 [실측].
+         naver/d2-coding-font VER1.4.0 · OFL-1.1. 폴더에 두기만 하면 빌드 산출물에서 빠진다(LL-026) — 여기 적는다.
+         OFL 은 글꼴과 함께 배포돼야 해서 라이선스 글도 같은 어셈블리에 넣는다. 게시본이 약 8.4MB 커진다(사용자 승인). -->
+    <Resource Include="Assets\Fonts\D2Coding-Ver1.4.0-20261003.ttf" />
+    <Resource Include="Assets\Fonts\D2CodingBold-Ver1.4.0-20261003.ttf" />
+    <Resource Include="Assets\Fonts\OFL.txt" />
   </ItemGroup>
 
 </Project>
