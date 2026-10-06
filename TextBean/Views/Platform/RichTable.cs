@@ -50,8 +50,8 @@ public static class RichTable
         Bind(box, InsertRowBelow, cell => InsertRow(box, cell, below: true));
         Bind(box, InsertColumnLeft, cell => InsertColumn(box, cell, right: false));
         Bind(box, InsertColumnRight, cell => InsertColumn(box, cell, right: true));
-        Bind(box, DeleteRow, cell => RemoveRow(box, cell));
-        Bind(box, DeleteColumn, cell => RemoveColumn(box, cell));
+        Bind(box, DeleteRow, cell => RemoveRows(box, cell, SelectedCells(box, cell)));
+        Bind(box, DeleteColumn, cell => RemoveColumns(box, cell, SelectedCells(box, cell)));
         Bind(box, DeleteTable, cell => Remove(box, TableOf(cell)));
         Bind(box, NextCell, cell => Move(box, cell, forward: true));
         Bind(box, PreviousCell, cell => Move(box, cell, forward: false));
@@ -91,9 +91,11 @@ public static class RichTable
     }
 
     /// 선택 시작이 든 칸. 표 밖이면 null.
-    public static TableCell? CellAt(RichTextBox box)
+    public static TableCell? CellAt(RichTextBox box) => CellOf(box.Selection.Start);
+
+    private static TableCell? CellOf(TextPointer position)
     {
-        for (DependencyObject? at = box.Selection.Start.Parent; at is not null; at = (at as TextElement)?.Parent)
+        for (DependencyObject? at = position.Parent; at is not null; at = (at as TextElement)?.Parent)
             if (at is TableCell cell) return cell;
         return null;
     }
@@ -196,41 +198,62 @@ public static class RichTable
         Focus(box, ((TableRow)cell.Parent).Cells[index]);
     }
 
-    /// 마지막 행을 지우면 표를 지운다 — 빈 표를 남기지 않는다 (D-132).
-    private static void RemoveRow(RichTextBox box, TableCell cell)
+    /// <summary>
+    /// 선택과 겹치는 칸들 (D-138). 칸 여러 개에 걸친 선택은 WPF 가 끝을 칸 경계(행 요소)로 옮겨, 끝 위치로 칸을 찾으면 못 찾는다 [실측 — 시험].
+    /// 선택이 비었거나 끝이 표 밖이면 시작 칸 하나 — 지금처럼 하나만 지운다.
+    /// </summary>
+    private static List<TableCell> SelectedCells(RichTextBox box, TableCell start)
     {
-        var row = (TableRow)cell.Parent;
-        var table = TableOf(cell);
+        var table = TableOf(start);
+        var selection = box.Selection;
+        if (selection.IsEmpty || selection.End.CompareTo(table.ContentEnd) > 0) return [start];
+
+        // 칸 선택은 직사각형이다 — 문서 순서로 겹친 칸을 다 세면 (1,1)~(2,2) 에 (2,0)이 끼어든다. 두 모서리(처음 · 마지막으로 겹친 칸)만 쓴다.
+        var hit = Cells(table).Where(c => c.ContentStart.CompareTo(selection.End) < 0 && c.ContentEnd.CompareTo(selection.Start) > 0).ToList();
+        return hit.Count == 0 ? [start] : [hit[0], hit[^1]];
+    }
+
+    private static int ColumnOf(TableCell cell) => ((TableRow)cell.Parent).Cells.IndexOf(cell);
+
+    /// 선택이 걸친 행을 모두 지운다 (D-138). 모든 행이 걸치면 표를 지운다 — 빈 표를 남기지 않는다 (D-132).
+    private static void RemoveRows(RichTextBox box, TableCell start, List<TableCell> selected)
+    {
+        var table = TableOf(start);
         var rows = Rows(table);
-        if (rows.Count == 1)
+        var first = selected.Min(c => rows.IndexOf((TableRow)c.Parent));
+        var last = selected.Max(c => rows.IndexOf((TableRow)c.Parent));
+        if (last - first + 1 == rows.Count)
         {
             Remove(box, table);
             return;
         }
 
-        var at = rows.IndexOf(row);
-        var column = row.Cells.IndexOf(cell);
-        ((TableRowGroup)row.Parent).Rows.Remove(row);
+        var column = ColumnOf(start);
+        for (var i = last; i >= first; i--) ((TableRowGroup)rows[i].Parent).Rows.Remove(rows[i]);
 
-        var neighbour = Rows(table)[Math.Min(at, rows.Count - 2)];
+        var left = Rows(table);
+        var neighbour = left[Math.Min(first, left.Count - 1)];
         Focus(box, neighbour.Cells[Math.Min(column, neighbour.Cells.Count - 1)]);
     }
 
-    /// 마지막 열을 지우면 표를 지운다 (D-132).
-    private static void RemoveColumn(RichTextBox box, TableCell cell)
+    /// 선택이 걸친 열을 모두 지운다 (D-138). 모든 열이 걸치면 표를 지운다 (D-132).
+    private static void RemoveColumns(RichTextBox box, TableCell start, List<TableCell> selected)
     {
-        var table = TableOf(cell);
-        var row = (TableRow)cell.Parent;
-        var index = row.Cells.IndexOf(cell);
-        if (row.Cells.Count == 1)
+        var table = TableOf(start);
+        var row = (TableRow)start.Parent;
+        var first = selected.Min(ColumnOf);
+        var last = selected.Max(ColumnOf);
+        if (first == 0 && last >= Rows(table).Max(r => r.Cells.Count) - 1)
         {
             Remove(box, table);
             return;
         }
 
-        foreach (var each in Rows(table).Where(r => index < r.Cells.Count)) each.Cells.RemoveAt(index);
-        if (index < table.Columns.Count) table.Columns.RemoveAt(index);
-        Focus(box, row.Cells[Math.Min(index, row.Cells.Count - 1)]);
+        foreach (var each in Rows(table))
+            for (var i = Math.Min(last, each.Cells.Count - 1); i >= first; i--) each.Cells.RemoveAt(i);
+        for (var i = Math.Min(last, table.Columns.Count - 1); i >= first; i--) table.Columns.RemoveAt(i);
+
+        Focus(box, row.Cells[Math.Min(first, row.Cells.Count - 1)]);
     }
 
     /// 표를 지우고 캐럿을 그 자리 다음(없으면 앞) 문단에 둔다. 문서가 비면 빈 문단 하나.

@@ -205,6 +205,80 @@ public class RichTableTests
         Assert.Empty(byColumn.Document.Blocks.OfType<Table>());
     });
 
+    private static void SelectCells(RichTextBox box, TableCell from, TableCell to)
+        => box.Selection.Select(from.ContentStart.GetInsertionPosition(LogicalDirection.Forward),
+                                to.ContentEnd.GetInsertionPosition(LogicalDirection.Backward));
+
+    [Fact]
+    public void 여러_칸을_고르면_걸친_행이나_열을_모두_지운다() => Run(() =>
+    {
+        var byRow = Body(Filled(4, 3), new Paragraph());
+        var rows = TableIn(byRow);
+        SelectCells(byRow, Cell(rows, 1, 1), Cell(rows, 2, 2));
+        RichTable.DeleteRow.Execute(null, byRow);
+        Assert.Equal(["r0c0", "r3c0"], Rows(rows).Select(r => TextOf(r.Cells[0])));
+
+        var byColumn = Body(Filled(4, 3), new Paragraph());
+        var columns = TableIn(byColumn);
+        SelectCells(byColumn, Cell(columns, 2, 2), Cell(columns, 1, 1));          // 거꾸로 골라도 같다
+        RichTable.DeleteColumn.Execute(null, byColumn);
+        Assert.All(Rows(columns), r => Assert.Single(r.Cells));
+        Assert.Single(columns.Columns);
+        Assert.Equal(["r0c0", "r1c0", "r2c0", "r3c0"], Rows(columns).Select(r => TextOf(r.Cells[0])));
+    });
+
+    [Fact]
+    public void 모든_행이나_열에_걸치면_표를_지운다() => Run(() =>
+    {
+        var byRow = Body(Filled(3, 2), new Paragraph(new Run("뒤")));
+        SelectCells(byRow, Cell(TableIn(byRow), 0, 1), Cell(TableIn(byRow), 2, 1));
+        RichTable.DeleteRow.Execute(null, byRow);
+        Assert.Empty(byRow.Document.Blocks.OfType<Table>());
+
+        var byColumn = Body(Filled(2, 3), new Paragraph(new Run("뒤")));
+        SelectCells(byColumn, Cell(TableIn(byColumn), 1, 0), Cell(TableIn(byColumn), 1, 2));
+        RichTable.DeleteColumn.Execute(null, byColumn);
+        Assert.Empty(byColumn.Document.Blocks.OfType<Table>());
+    });
+
+    [Fact]
+    public void 선택_끝이_표_밖이면_시작_칸의_행_하나만_지운다() => Run(() =>
+    {
+        var box = Body(Filled(3, 2), new Paragraph(new Run("뒤")));
+        var table = TableIn(box);
+        box.Selection.Select(Cell(table, 1, 0).ContentStart.GetInsertionPosition(LogicalDirection.Forward), box.Document.ContentEnd);
+
+        RichTable.DeleteRow.Execute(null, box);
+
+        Assert.Equal(["r0c0", "r2c0"], Rows(table).Select(r => TextOf(r.Cells[0])));
+    });
+
+    [Fact]
+    public void 여러_행_지우기는_실행취소_한_번에_되돌아간다() => Run(() =>
+    {
+        var box = Body(Filled(4, 2), new Paragraph());
+        var window = new Window
+        {
+            Left = -20000, Top = -20000, Width = 300, Height = 200, ShowActivated = false, ShowInTaskbar = false,
+            WindowStyle = WindowStyle.None, Content = box
+        };
+        window.Show();
+        try
+        {
+            SelectCells(box, Cell(TableIn(box), 0, 0), Cell(TableIn(box), 2, 1));
+            RichTable.DeleteRow.Execute(null, box);
+            Assert.Single(Rows(TableIn(box)));
+
+            box.Undo();
+
+            Assert.Equal(["r0c0", "r1c0", "r2c0", "r3c0"], Rows(TableIn(box)).Select(r => TextOf(r.Cells[0])));
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
     [Fact]
     public void 표_지우기는_표를_없애고_캐럿을_다음_문단에_둔다() => Run(() =>
     {
