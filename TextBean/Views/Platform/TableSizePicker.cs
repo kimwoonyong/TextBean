@@ -15,10 +15,11 @@ public sealed class TableSizePicker : StackPanel
     private const double CellSize = 16;
     private const double Gap = 2;
 
-    private static readonly Brush Idle = Frozen(Colors.White);
-    private static readonly Brush IdleLine = Frozen(Color.FromRgb(0xB4, 0xB2, 0xA9));
-    private static readonly Brush Lit = Frozen(Color.FromRgb(0xB5, 0xD4, 0xF4));
-    private static readonly Brush LitLine = Frozen(Color.FromRgb(0x18, 0x5F, 0xA5));
+    // 지금 테마의 앱 색 (D-163). 테마를 바꾸면 창 안 내용이 새로 만들어져 다시 읽는다.
+    private static Brush Idle => AppTheme.Brush("PopupBrush");
+    private static Brush IdleLine => AppTheme.Brush("SwatchLineBrush");
+    private static Brush Lit => AppTheme.Brush("PickerLitBrush");
+    private static Brush LitLine => AppTheme.Brush("AccentBrush");
 
     public static readonly DependencyProperty CommandProperty =
         DependencyProperty.Register(nameof(Command), typeof(ICommand), typeof(TableSizePicker));
@@ -104,12 +105,5 @@ public sealed class TableSizePicker : StackPanel
 
         Highlight((1, 1));
         RaiseEvent(new RoutedEventArgs(PickedEvent, this));
-    }
-
-    private static Brush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 }

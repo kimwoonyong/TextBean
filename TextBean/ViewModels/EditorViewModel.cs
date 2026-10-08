@@ -217,6 +217,24 @@ public sealed class EditorViewModel : ObservableObject, IDisposable
     /// 화면이 등록한다: 문서 전체를 서식째 복사할 내용 (「전체 복사」).
     public Func<ClipboardPayload>? CaptureAllForCopy { get; set; }
 
+    /// <summary>
+    /// 테마를 바꾸기 직전 (D-165). 지금 본문을 서식 바이트로 거둬 둔다 — 바꾸면 화면이 본문을 새로 만들고 [실측] 이 바이트로 다시 연다.
+    /// 저장하지 않고 「고쳐짐」 · 편집 버전도 건드리지 않는다 — 고친 것은 그대로 자동 저장을 기다린다.
+    /// 화면이 없거나(시험 · .txt) 못 읽은 문서는 하지 않는다 — 못 읽은 문서의 빈 본문이 원본 바이트를 덮으면 안 된다 (D-005).
+    /// </summary>
+    public void StashBody()
+    {
+        if (_loadFailed || CaptureBody is not { } capture) return;
+        _rich = capture().Rich;
+    }
+
+    /// 테마를 바꾼 직후 (D-165). 화면이 거둔 바이트로 본문을 다시 연다 — 새 테마 색으로. 새로 만들어진 본문은 묶이며 스스로도 연다(두 번 열어도 같다).
+    public void ReloadBody()
+    {
+        if (_loadFailed || _isPlainText || !HasDocument) return;
+        Raise(nameof(Rich));
+    }
+
     /// 화면이 알린다: 글자든 서식이든 본문이 바뀌었다. 글자는 SyncText 로 따로 온다.
     public void MarkEdited()
     {

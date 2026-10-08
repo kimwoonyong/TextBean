@@ -851,15 +851,16 @@ public class TrayResidentTests
     // ── 도구 모음 · 단축키 ───────────────────────────────────────────────────
 
     [Fact]
-    public void 도구_모음의_종료와_Ctrl_Q_는_종료_명령에_묶인다() => Run(() =>
+    public void 파일_메뉴의_종료와_Ctrl_Q_는_종료_명령에_묶인다() => Run(() =>
     {
         using var scene = TabScene.Open(1);
 
-        // 넘침 영역의 항목은 시각 트리에 없을 수 있다 — 도구 모음의 항목 목록에서 찾는다
-        var toolbar = FindDescendant<ToolBar>(scene.Window)!;
-        var exit = toolbar.Items.OfType<Button>().Single(b => Equals(b.Content, "종료"));
+        // 위 메뉴 (D-158) — 하위 항목은 메뉴를 열지 않아도 항목 목록에 있다
+        var file = FindDescendant<Menu>(scene.Window)!.Items.OfType<MenuItem>().First(m => Equals(m.Header, "파일"));
+        var exit = file.Items.OfType<MenuItem>().Single(m => Equals(m.Header, "종료"));
         Assert.Same(scene.Shell.ExitCommand, exit.Command);
-        Assert.Same(exit, toolbar.Items.OfType<Button>().Last());      // 맨 끝 — 잠그기 뒤
+        Assert.Same(exit, file.Items.OfType<MenuItem>().Last());       // 파일 메뉴 맨 끝
+        Assert.Equal("Ctrl+Q", exit.InputGestureText);
 
         var key = scene.Window.InputBindings.OfType<KeyBinding>().Single(k => k.Key == Key.Q);
         Assert.Equal(ModifierKeys.Control, key.Modifiers);

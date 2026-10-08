@@ -101,6 +101,18 @@ public sealed class FakeDialogs : IDialogService
         return PickImageFileResult;
     }
 
+    /// null 이면 취소한 것으로 본다.
+    public string? PickModelFileResult;
+    public int PickModelFileCount { get; private set; }
+
+    public string? PickModelFile()
+    {
+        if (SuppressedNow()) return null;
+
+        PickModelFileCount++;
+        return PickModelFileResult;
+    }
+
     public bool Confirm(string title, string message)
     {
         if (SuppressedNow()) return false;
@@ -176,6 +188,87 @@ public sealed class FakeDialogs : IDialogService
 /// 진짜 알림 영역 아이콘을 만들지 않는다 — 시험이 사용자 트레이에 아이콘을 올리면 안 된다 (D-103).
 /// 메뉴 클릭은 Raise… 로 흉내낸다.
 /// </summary>
+/// 마이크 대신 — 시험이 소리를 밀어 넣는다(실제 녹음은 하지 않는다, plan R-8).
+public sealed class FakeRecorder : IVoiceRecorder
+{
+    public event Action<float[]>? Samples;
+    public event Action<VoiceUnavailableException>? Failed;
+
+    public int StartCount { get; private set; }
+    public int StopCount { get; private set; }
+    public bool IsRecording { get; private set; }
+    public bool Disposed { get; private set; }
+
+    /// 주면 Start 가 이것을 던진다(마이크 없음 등).
+    public VoiceUnavailableException? StartError;
+
+    public void Start()
+    {
+        if (StartError is not null) throw StartError;
+        StartCount++;
+        IsRecording = true;
+    }
+
+    public void Stop()
+    {
+        StopCount++;
+        IsRecording = false;
+    }
+
+    public void Push(float[] samples) => Samples?.Invoke(samples);
+
+    public void Fail(string message)
+    {
+        IsRecording = false;
+        Failed?.Invoke(new VoiceUnavailableException(message));
+    }
+
+    public void Dispose()
+    {
+        Disposed = true;
+        IsRecording = false;
+    }
+}
+
+/// 모델 대신 — 조각마다 정해 둔 글자를 돌려준다. 준비 · 받아쓰기를 붙잡아 「준비 중」 · 「받아쓰는 중」을 결정적으로 만든다.
+public sealed class FakeSpeechToText : ISpeechToText
+{
+    public const string GoodPath = @"C:\모델\ggml-large-v3-turbo-q5_0.bin";
+
+    public int PrepareCount;
+    public string? PreparedPath;
+    public TaskCompletionSource? PrepareGate;
+    public Exception? PrepareError;
+
+    /// 차례로 돌려줄 글자. 비면 「조각N」.
+    public readonly System.Collections.Concurrent.ConcurrentQueue<string> Texts = new();
+    public TaskCompletionSource? TranscribeGate;
+    public Exception? TranscribeError;
+    public readonly System.Collections.Concurrent.ConcurrentQueue<int> ChunkLengths = new();
+    public bool Disposed;
+
+    public string? ModelProblem(string? modelPath, string? vaultRoot)
+        => modelPath == GoodPath ? null : "음성 인식 모델 파일이 없습니다.";
+
+    public async Task PrepareAsync(string modelPath, CancellationToken ct)
+    {
+        Interlocked.Increment(ref PrepareCount);
+        PreparedPath = modelPath;
+        if (PrepareGate is { } gate) await gate.Task.WaitAsync(ct);
+        if (PrepareError is { } error) throw error;
+    }
+
+    public async Task<string> TranscribeAsync(float[] samples, CancellationToken ct)
+    {
+        ChunkLengths.Enqueue(samples.Length);
+        if (TranscribeGate is { } gate) await gate.Task.WaitAsync(ct);
+        if (TranscribeError is { } error) throw error;
+        return Texts.TryDequeue(out var text) ? text : $"조각{ChunkLengths.Count}";
+    }
+
+    public void Dispose() => Disposed = true;
+}
+
 public sealed class FakeTrayIcon : ITrayIcon
 {
     public event EventHandler? OpenRequested;

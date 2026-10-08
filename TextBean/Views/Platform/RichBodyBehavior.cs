@@ -97,6 +97,8 @@ public static class RichBodyBehavior
             // 도구 모음 「13 ▾」 — 커서를 옮기거나 글이 바뀌면(실행취소 포함) 지금 크기를 다시 읽는다 (D-151)
             box.SelectionChanged += (_, _) => RichFormat.UpdateCurrentSize(box);
             box.TextChanged += (_, _) => RichFormat.UpdateCurrentSize(box);
+            // 붙는 순간에는 본문 자원(FlowDocument 스타일 — 본문 글꼴 · 13)이 아직 없어 Fluent 기본(16)을 읽는다 [실측 — 렌더] — 다 만들어진 뒤 다시 읽는다 (D-163)
+            box.Loaded += (_, _) => RichFormat.UpdateCurrentSize(box);
             box.IsVisibleChanged += (_, _) => UpdateResizer();      // 가려진 탭 위에 손잡이를 그리지 않는다
             box.DataContextChanged += (_, e) => Bind(e.NewValue as EditorViewModel);
             Bind(box.DataContext as EditorViewModel);
@@ -137,8 +139,10 @@ public static class RichBodyBehavior
             {
                 _vm.PropertyChanged -= OnVmChanged;
                 _vm.Closed -= OnClosed;
-                _vm.CaptureBody = null;
-                _vm.CaptureAllForCopy = null;
+                // 자기가 건 연결만 푼다 (계획 검토 R-2). 테마를 바꾸면 본문이 새로 만들어진다 [실측] — 옛 본문이 새 본문보다 늦게 풀리면
+                // 새 본문의 연결까지 지워 저장이 옛 바이트를 쓰고, 바꾼 뒤 쓴 글이 저장에서 빠진다.
+                if (Equals(_vm.CaptureBody, (Func<DocumentBody>)Capture)) _vm.CaptureBody = null;
+                if (Equals(_vm.CaptureAllForCopy, (Func<ClipboardPayload>)CaptureAll)) _vm.CaptureAllForCopy = null;
             }
 
             _vm = vm;
@@ -147,9 +151,11 @@ public static class RichBodyBehavior
             _vm.PropertyChanged += OnVmChanged;
             _vm.Closed += OnClosed;
             _vm.CaptureBody = Capture;
-            _vm.CaptureAllForCopy = () => PayloadOf(new TextRange(_box.Document.ContentStart, _box.Document.ContentEnd));
+            _vm.CaptureAllForCopy = CaptureAll;
             Reload();
         }
+
+        private ClipboardPayload CaptureAll() => PayloadOf(new TextRange(_box.Document.ContentStart, _box.Document.ContentEnd));
 
         private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -267,8 +273,10 @@ public static class RichBodyBehavior
                 // 선택 시작은 글자 안이라 그 글자 요소의 시작을 지나친다 — 걸친 문단 전체를 지운다(원래 글자엔 글꼴 이름이 없다).
                 // 표를 붙였으면 문단 바깥(표 · 행 · 칸)도 걸친다 — 맨 바깥 블록까지 넓힌다.
                 var selection = box.Selection;
-                RichTextMap.ClearFonts(TopBlock(selection.Start)?.ElementStart ?? selection.Start,
-                                       TopBlock(selection.End)?.ElementEnd ?? selection.End);
+                var start = TopBlock(selection.Start)?.ElementStart ?? selection.Start;
+                var end = TopBlock(selection.End)?.ElementEnd ?? selection.End;
+                RichTextMap.ClearFonts(start, end);
+                DocumentColors.Prepare(start, end, AppTheme.IsDark);   // 복사본은 저장 색이다 — 같은 변경 안에서 지금 테마로 (D-162)
                 box.CaretPosition = selection.End;
                 return true;
             }

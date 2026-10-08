@@ -23,6 +23,9 @@ public interface IDialogService
     /// 그림 파일 하나를 고른다(그림 넣기 — D-140). 금고 밖일 수 있다 — 읽기는 ImageFileImport 한 곳만 한다.
     string? PickImageFile();
 
+    /// 음성 인식 모델 파일 하나를 고른다(D-179). 금고 밖에 있다 — 확인 · 읽기는 WhisperSpeechToText 한 곳만 한다.
+    string? PickModelFile();
+
     bool Confirm(string title, string message);
 
     void Error(string title, string message);

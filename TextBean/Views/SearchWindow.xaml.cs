@@ -15,6 +15,7 @@ public partial class SearchWindow : Window
 {
     public SearchWindow()
     {
+        Platform.AppTheme.Use(this);         // InitializeComponent 앞에 (D-163)
         InitializeComponent();
 
         // 창을 파괴하면 재사용할 수 없다. 숨기고, 검색어는 지운다 —

@@ -42,6 +42,8 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // 테마는 InitializeComponent 앞에 — 늦으면 탭 · 트리 스타일의 BasedOn 이 옛 모양을 잡는다 [실측] (D-163)
+        AppTheme.Use(this);
         InitializeComponent();
 
         // 복사 가로채기는 EditorBehavior.InterceptCopy 가 TextBox 마다 건다.
@@ -82,10 +84,14 @@ public partial class MainWindow : Window
     }
 
     /// 활성 탭의 본문(TextBox 또는 RichTextBox). 본문은 탭마다 하나씩 TabBodies 가 만든다.
-    public TextBoxBase? FindActiveBodyTextBox()
+    public TextBoxBase? FindActiveBodyTextBox() => Vm.ActiveTab is { } active ? FindBodyFor(active) : null;
+
+    /// <summary>
+    /// 그 탭의 본문. 탭 본문은 가상화 없는 Grid 에 모두 살아 있다(가려진 탭도) — 음성 입력은 다른 탭으로 가도 시작한 탭에 넣는다 (D-184).
+    /// </summary>
+    public TextBoxBase? FindBodyFor(EditorViewModel tab)
     {
-        if (Vm.ActiveTab is not { } active || TabBodies.ItemContainerGenerator.ContainerFromItem(active) is not DependencyObject host)
-            return null;
+        if (TabBodies.ItemContainerGenerator.ContainerFromItem(tab) is not DependencyObject host) return null;
 
         return FindDescendant<TextBoxBase>(host);
     }
@@ -149,12 +155,32 @@ public partial class MainWindow : Window
             fresh.ExitRequested += OnExitRequested;
             fresh.ShortcutsChanged += OnShortcutsChanged;
             fresh.ShortcutsRequested += OnShortcutsRequested;
+
+            // 저장된 본문 글꼴로 시작한다 (D-155)
+            AppFonts.Select(fresh.BodyFont);
+            // 저장된 테마 — 앱은 창을 만들기 전에 이미 골라 두므로(App.ComposeAsync) 보통은 할 일이 없다 (D-161)
+            ApplyTheme();
         }
 
         ApplyShortcuts();
     }
 
     private void OnExitRequested(object? sender, EventArgs e) => RequestExit();
+
+    /// <summary>
+    /// 셸이 고른 테마로 바꾼다 (D-165, 사용자 판정 Q-5 바로 바뀜). 순서가 중요하다:
+    /// ① <b>옛 테마인 채로</b> 열린 서식 본문을 거둔다 — 저장 색으로 바뀌어 담긴다(RichTextMap.Save).
+    /// ② 테마를 바꾼다 — 열린 창마다 Fluent · 색 표가 바뀌고, 창 안 본문이 새로 만들어진다 [실측].
+    /// ③ 거둔 바이트로 다시 연다 — 새 테마 색. 실행취소 기록 · 커서 · 스크롤만 처음으로 돌아간다.
+    /// </summary>
+    private void ApplyTheme()
+    {
+        if (AppTheme.Current.Id == Vm.Theme.Id) return;
+
+        Vm.StashBodies();
+        AppTheme.Select(Vm.Theme.Id);
+        Vm.ReloadBodies();
+    }
 
     // ── 단축키 (D-110) ───────────────────────────────────────────────────────
 
@@ -310,6 +336,19 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnShellChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 고른 본문 글꼴을 실제 글꼴로 — 열린 탭의 본문이 바인딩으로 바로 따라온다 (D-155)
+        if (e.PropertyName == nameof(ShellViewModel.BodyFont))
+        {
+            AppFonts.Select(Vm.BodyFont);
+            return;
+        }
+
+        if (e.PropertyName == nameof(ShellViewModel.Theme))
+        {
+            ApplyTheme();
+            return;
+        }
+
         if (e.PropertyName != nameof(ShellViewModel.IsFindBarOpen)) return;
         if (!Vm.IsFindBarOpen) return;
 

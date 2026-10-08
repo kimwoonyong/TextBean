@@ -101,12 +101,26 @@ public class RichFontTests
         }
     }
 
+    /// 본문 글꼴 후보 전체 × 배율 — 후보를 늘리면 여기서 걸러진다 (D-157). 한글 · 영문을 한 글꼴이 그리지 않으면 띠가 들쭉하다.
+    public static TheoryData<string, double> CandidatesAndScales()
+    {
+        var data = new TheoryData<string, double>();
+        foreach (var choice in TextBean.ViewModels.FontChoices.All)
+            foreach (var scale in new[] { 1.0, 1.25, 1.5 })
+                data.Add(choice.Id, scale);
+        return data;
+    }
+
     [Theory]
-    [InlineData(1.0)]
-    [InlineData(1.25)]
-    [InlineData(1.5)]
-    public void 형광펜_띠는_배율마다_높이가_고르다(double scale) => Run(()
-        => Assert.Single(Bands(AppFonts.Body, scale)));
+    [MemberData(nameof(CandidatesAndScales))]
+    public void 후보_글꼴마다_형광펜_띠는_배율마다_높이가_고르다(string id, double scale) => Run(() =>
+    {
+        var font = AppFonts.For(TextBean.ViewModels.FontChoices.Find(id));
+        var face = font.GetTypefaces().First();
+        Assert.True(face.TryGetGlyphTypeface(out var glyph), $"{id} 글꼴을 찾지 못했다");
+        Assert.True(glyph.CharacterToGlyphMap.ContainsKey('가'), $"{id} 글꼴에 한글이 없다 — 대체 글꼴이 섞여 띠가 들쭉해진다");
+        Assert.Single(Bands(font, scale));
+    });
 
     // ── 문서의 글꼴 이름 (D-149) ─────────────────────────────────────────────
 

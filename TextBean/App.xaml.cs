@@ -86,6 +86,9 @@ public partial class App : Application
         var settings = new AppSettingsService(AppSettingsService.DefaultFilePath);
         await settings.LoadAsync();
 
+        // 창 · 키 입력 창을 만들기 전에 — 창은 만들어질 때 테마를 건다 (D-161 · D-163)
+        AppTheme.Select(settings.Current.Theme);
+
         var dialogs = new DialogService();
         _clipboard = new ClipboardService();
         _disposables.Add(_clipboard);
@@ -128,6 +131,12 @@ public partial class App : Application
         _shell = shell;
 
         var window = new MainWindow { DataContext = shell };
+
+        // 음성 입력 (add-voice-input). 셸 뒤에 넣는다 — 역순 해제에서 셸보다 먼저 마이크 · 모델이 닫힌다
+        var dictation = new DictationController(new WasapiVoiceRecorder(), new WhisperSpeechToText(), settings, dialogs,
+                                                window.FindBodyFor, () => tree.Root);
+        shell.UseDictation(dictation);
+        _disposables.Add(dictation);
         MainWindow = window;
         window.Show();
 

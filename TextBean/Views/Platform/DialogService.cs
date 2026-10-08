@@ -145,6 +145,21 @@ public sealed class DialogService : IDialogService
         return Showing(() => dialog.ShowDialog()) == true ? dialog.FileName : null;
     }
 
+    public string? PickModelFile()
+    {
+        if (Suppressed("pick-model")) return null;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "음성 인식 모델 파일 고르기 (ggml-large-v3-turbo-q5_0.bin)",
+            Filter = "음성 인식 모델 (*.bin)|*.bin",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return Showing(() => dialog.ShowDialog()) == true ? dialog.FileName : null;
+    }
+
     public bool Confirm(string title, string message)
     {
         if (Suppressed("confirm")) return false;

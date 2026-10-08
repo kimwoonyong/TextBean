@@ -1163,7 +1163,7 @@ public class TabStripTests
         Pump();
         scene.Strip.DragScrollInterval = TimeSpan.FromSeconds(30);      // 저절로 넘기지 않게 — 타이머가 도는지만 본다
         var tree = FindDescendant<TreeView>(scene.Window)!;
-        var toolbar = FindDescendant<ToolBar>(scene.Window)!;
+        var toolbar = FindDescendant<Menu>(scene.Window)!;                  // 위 줄 메뉴 막대 (D-158)
 
         OleDrag StartAtEdge()
         {
@@ -1182,7 +1182,7 @@ public class TabStripTests
         Assert.Null(scene.Strip.InsertionAdorner);
 
         foreach (var (name, over, at) in new (string, FrameworkElement, Point)[]
-                 { ("트리", tree, new Point(20, 3)), ("도구 모음", toolbar, Center(toolbar)) })
+                 { ("트리", tree, new Point(20, 3)), ("위 메뉴", toolbar, Center(toolbar)) })
         {
             var drag = StartAtEdge();
             drag.Over(over, at);

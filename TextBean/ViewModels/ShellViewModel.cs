@@ -101,6 +101,10 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         ChangeKeyCommand = new RelayCommand(_ => Guarded("키 변경", ChangeKeyAsync));
         LockCommand      = new RelayCommand(_ => Guarded("잠그기", LockAsync));
 
+        // CanExecute 를 두지 않는다 — 도구 막대에 흐린 단추를 두지 않고(어두운 테마 결정), 메뉴의 꺼짐이 굳는 일도 없다(탐색기에서 열기와 같은 이유).
+        // 음성 입력이 붙지 않았거나(D-187) 시작할 수 없는 탭이면 눌러도 아무것도 하지 않는다
+        ToggleDictationCommand = new RelayCommand(_ => Guarded("음성 입력", ToggleDictationAsync));
+
         // 끄는 것은 창의 닫기 절차(저장 → 다시 닫기)다. 바쁨 검사도 거기서 한다 — 여기서 Shutdown 을 부르면
         // Closing 취소가 무시되어 저장이 버려진다 [실측 — 모의] (D-097)
         ExitCommand      = new RelayCommand(_ => ExitRequested?.Invoke(this, EventArgs.Empty));
@@ -111,6 +115,86 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         // 잘못 적힌 줄은 그 줄만 기본 키로 — 앱은 뜬다 (D-110)
         Shortcuts = ShortcutCatalog.Resolve(_settings.Current.Shortcuts,
                                             id => AppLog.Warn($"shortcut-invalid-{id}", null, null));
+
+        // 모르는 글꼴 id 는 기본 글꼴 (D-155)
+        BodyFont = FontChoices.Find(_settings.Current.BodyFont);
+        SetBodyFontCommand = new RelayCommand(id => _ = SetBodyFontAsync(id as string));
+
+        // 모르는 테마 id 는 밝게 (D-161)
+        Theme = ThemeChoices.Find(_settings.Current.Theme);
+        SetThemeCommand = new RelayCommand(id => _ = SetThemeAsync(id as string));
+    }
+
+    // ── 테마 (D-161) ─────────────────────────────────────────────────────────
+    // 실제 색 · 열린 본문 거두기 · 다시 열기는 View(MainWindow · AppTheme)의 일이다 — 여기는 id 만 든다.
+
+    public ThemeChoice Theme { get; private set; }
+
+    public RelayCommand SetThemeCommand { get; }
+
+    /// 보기 ▸ 테마 목록 — 지금 테마에 ✓.
+    public IReadOnlyList<ThemeMenuItem> ThemeMenu => [.. ThemeChoices.All.Select(c => new ThemeMenuItem(c.Id, c.Label, c.Id == Theme.Id))];
+
+    /// 바로 바꾸고 저장한다. 저장에 실패하면 알리고 지금만 쓴다 — 글꼴과 같은 길.
+    public async Task SetThemeAsync(string? id)
+    {
+        var choice = ThemeChoices.Find(id);
+        if (choice.Id == Theme.Id) return;
+
+        Theme = choice;
+        Raise(nameof(Theme));
+        Raise(nameof(ThemeMenu));
+        _settings.Current.Theme = choice.Id;
+
+        try { await _settings.SaveAsync(); }
+        catch (Exception ex)
+        {
+            AppLog.Error("theme-save", null, ex);
+            _dialogs.Error("테마 저장 실패", "고른 테마는 지금만 쓰이고, 다시 켜면 예전 테마로 돌아갑니다.");
+        }
+    }
+
+    /// <summary>
+    /// 테마를 바꾸기 직전 · 직후 (D-165). 바꾸면 창 안 본문이 새로 만들어진다 [실측] —
+    /// 열린 서식 본문을 모두 거둬 두고(<see cref="EditorViewModel.StashBody"/>), 바꾼 뒤 다시 연다(<see cref="EditorViewModel.ReloadBody"/>).
+    /// </summary>
+    public void StashBodies()
+    {
+        foreach (var tab in Tabs) tab.StashBody();
+    }
+
+    public void ReloadBodies()
+    {
+        foreach (var tab in Tabs) tab.ReloadBody();
+    }
+
+    // ── 본문 글꼴 (D-155 ~ D-157) ────────────────────────────────────────────
+    // 고른 글꼴을 실제 글꼴로 바꾸는 것은 View(AppFonts)의 일이다 — 여기는 이름만 든다.
+
+    public FontChoice BodyFont { get; private set; }
+
+    public RelayCommand SetBodyFontCommand { get; }
+
+    /// 도구 모음 「글꼴 ▾」 목록 — 지금 글꼴에 ✓.
+    public IReadOnlyList<FontMenuItem> FontMenu => [.. FontChoices.All.Select(c => new FontMenuItem(c.Id, c.Label, c.Id == BodyFont.Id))];
+
+    /// 바로 바꾸고 저장한다. 저장에 실패하면 알리고 지금만 쓴다 — 단축키와 같은 길 (D-110).
+    public async Task SetBodyFontAsync(string? id)
+    {
+        var choice = FontChoices.Find(id);
+        if (choice.Id == BodyFont.Id) return;
+
+        BodyFont = choice;
+        Raise(nameof(BodyFont));
+        Raise(nameof(FontMenu));
+        _settings.Current.BodyFont = choice.Id;
+
+        try { await _settings.SaveAsync(); }
+        catch (Exception ex)
+        {
+            AppLog.Error("font-save", null, ex);
+            _dialogs.Error("글꼴 저장 실패", "고른 글꼴은 지금만 쓰이고, 다시 켜면 예전 글꼴로 돌아갑니다.");
+        }
     }
 
     /// 활성 상태를 IsEnabled 바인딩과 코드 양쪽에서 정하지 않는다 — 판정은 CanExecute 한 곳이다 (LL-033).
@@ -245,6 +329,64 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public RelayCommand LockCommand { get; }
     public RelayCommand ExitCommand { get; }
 
+    // ── 음성 입력 (add-voice-input · D-180 · D-187) ──────────────────────────
+
+    private IDictation? _dictation;
+
+    /// 도구 막대 단추 · 편집 메뉴 · 단축키가 같은 명령이다. 듣는 중이면 어느 탭에서 눌러도 멈춘다.
+    public RelayCommand ToggleDictationCommand { get; }
+
+    /// <summary>
+    /// 조립 루트가 붙인다 — 생성자 인자로 두지 않는다(시험의 셸 생성 코드 여러 곳을 그대로 두려고, D-187). 붙이지 않으면 명령이 꺼져 있다.
+    /// </summary>
+    public void UseDictation(IDictation dictation)
+    {
+        _dictation = dictation;
+        dictation.StateChanged += (_, _) => RaiseDictation();
+        RaiseDictation();
+    }
+
+    public bool IsDictating => _dictation?.State is DictationState.Listening;
+
+    public string DictationMenuHeader => IsDictating ? "음성 입력 멈추기" : "음성 입력 시작";
+
+    public string DictationButtonText => IsDictating ? "● 멈추기" : "말하기";
+
+    /// 상태 줄 — 어느 문서에 들어가는지 함께 보인다 (plan R-9). 쉬면 빈 글자.
+    public string DictationStatusText
+    {
+        get
+        {
+            if (_dictation is not { State: not DictationState.Idle } dictation) return "";
+
+            var parts = new List<string>
+            {
+                dictation.State == DictationState.Listening ? $"● 듣는 중 {dictation.Elapsed:m\\:ss}" : "마무리 중",
+                $"「{(dictation.Target as EditorViewModel)?.TabTitle}」"
+            };
+            if (dictation.IsPreparing) parts.Add("준비 중");
+            if (dictation.Pending > 0) parts.Add($"받아쓰는 중 {dictation.Pending}");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    private async Task ToggleDictationAsync()
+    {
+        if (_dictation is not { } dictation) return;
+
+        if (dictation.State == DictationState.Listening) dictation.Stop();
+        else if (dictation.State == DictationState.Idle && dictation.CanStart(ActiveTab)) await dictation.StartAsync(ActiveTab!);
+    }
+
+    private void RaiseDictation()
+    {
+        Raise(nameof(IsDictating));
+        Raise(nameof(DictationMenuHeader));
+        Raise(nameof(DictationButtonText));
+        Raise(nameof(DictationStatusText));
+        ToggleDictationCommand.RaiseCanExecuteChanged();
+    }
+
     /// 도구 모음 「종료」 · Ctrl+Q. 창을 끄는 것은 View 의 일이다 — 트레이 「종료」와 같은 자리(MainWindow.RequestExit)로 간다.
     public event EventHandler? ExitRequested;
 
@@ -286,6 +428,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
         "lock" => LockCommand,
         "closeAllTabs" => CloseAllTabsCommand,
         "openInExplorer" => OpenInExplorerCommand,
+        "voiceInput" => ToggleDictationCommand,
         _ => null,
     };
 
@@ -296,6 +439,7 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     public async Task SetShortcutsAsync(IReadOnlyDictionary<string, string?> map)
     {
         Shortcuts = map;
+        Raise(nameof(Shortcuts));                       // 위 메뉴 항목 오른쪽 키 글자가 따라온다 (D-159)
         _settings.Current.Shortcuts = map.ToDictionary(p => p.Key, p => p.Value ?? "");
         RaiseShortcutText();
         ShortcutsChanged?.Invoke(this, EventArgs.Empty);
@@ -1029,6 +1173,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private async Task ApplyRootAsync(string picked)
     {
+        // 옛 금고의 탭에 받아쓴 글자가 들어가지 않게 — 남은 조각은 버린다 (D-186)
+        _dictation?.Cancel();
+
         // 새 금고를 그린 뒤 키를 다시 판정해 새 세대를 세우기까지 명령을 막는다. 그 사이 연 탭은 옛 세대에 묶여
         // 판정이 끝나는 순간부터 저장이 영영 거부된다 [실측 — 적대적 검토].
         using var busy = BeginBusy();
@@ -1058,7 +1205,12 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     /// 창을 닫기 전에 부른다. 활성 탭만 저장하면 배경 탭의 편집 내용이 종료와 함께 사라진다 (J-3).
     /// 하나라도 실패하면 false — 호출자가 종료를 취소한다 (D-011).
     /// </summary>
-    public Task<bool> SaveAllForExitAsync() => SaveAllTabsAsync("종료");
+    public Task<bool> SaveAllForExitAsync()
+    {
+        // 저장 뒤에 받아쓴 글자가 들어오면 저장되지 않은 채 꺼진다 — 저장 전에 버린다 (D-186, plan R-2)
+        _dictation?.Cancel();
+        return SaveAllTabsAsync("종료");
+    }
 
     /// <summary>
     /// ✕ 로 트레이에 숨기기 전에 View 가 부른다. 숨은 앱은 Windows 종료를 막지도 묻지도 못한다 [문서] —
@@ -1085,6 +1237,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
                 await RememberTrayNoticeAsync();
             }
 
+            // 보이지 않는 창에서 마이크가 계속 켜져 있지 않게 듣기를 멈춘다. 말하던 조각까지는 넣는다 (D-185)
+            _dictation?.Stop();
+
             return await SaveAllTabsAsync("숨기기", allowDiscard: false);
         }
         catch (Exception ex)
@@ -1110,6 +1265,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task<bool> SaveAllQuietlyAsync()
     {
+        // 저장 뒤에 받아쓴 글자가 들어오면 저장되지 않은 채 꺼진다 — 저장 전에 버린다 (D-186)
+        _dictation?.Cancel();
+
         var failed = new List<EditorViewModel>();
 
         // 뒤 탭을 저장하는 사이 앞 탭에 친 글자가 있으면 한 바퀴 더 돈다 — SaveAllTabsAsync 와 같은 이유
@@ -1733,6 +1891,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
     private async Task LockAsync()
     {
+        // 잠그기는 「지금 멈춤」이다 — 키가 없어도(.txt 탭만 열려 있어도) 마이크는 끈다 (D-186)
+        _dictation?.Cancel();
+
         if (!_keys.HasKey) return;
 
         var busy = BeginBusy();
@@ -1757,6 +1918,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task<bool> LockQuietlyAsync()
     {
+        // 잠그기는 「지금 멈춤」이다 — 키가 없어도(.txt 탭만 열려 있어도) 마이크는 끈다 (D-186)
+        _dictation?.Cancel();
+
         if (!_keys.HasKey) return true;
 
         // 키 전환과 겹치면 같은 탭을 두 길이 저장하고 닫는다
@@ -1884,5 +2048,9 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
     /// 해제 책임도 여기에 있다 — App._disposables 에 편집기를 직접 넣으면
     /// Remove 가 없어 닫힌 탭이 목록에 남고 평문이 종료까지 산다.
     /// </summary>
-    public void Dispose() => CloseAllTabs();
+    public void Dispose()
+    {
+        _dictation?.Cancel();
+        CloseAllTabs();
+    }
 }

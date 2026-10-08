@@ -175,12 +175,14 @@ public class RichTableTests
         CaretIn(box, Cell(table, 0, 0));
         RichTable.InsertColumnLeft.Execute(null, box);
         RichTable.InsertColumnRight.Execute(null, box);
+        table = TableIn(box);                                                  // 열 편집은 표를 통째로 갈아 끼운다 (D-176)
         Assert.All(Rows(table), r => Assert.Equal(4, r.Cells.Count));
         Assert.Equal(4, table.Columns.Count);
         Assert.Equal(["", "", "r0c0", "r0c1"], Rows(table)[0].Cells.Select(TextOf));
 
         CaretIn(box, Cell(table, 0, 2));
         RichTable.DeleteColumn.Execute(null, box);
+        table = TableIn(box);
         Assert.Equal(["", "", "r0c1"], Rows(table)[0].Cells.Select(TextOf));
         Assert.Equal(3, table.Columns.Count);
 
@@ -222,6 +224,7 @@ public class RichTableTests
         var columns = TableIn(byColumn);
         SelectCells(byColumn, Cell(columns, 2, 2), Cell(columns, 1, 1));          // 거꾸로 골라도 같다
         RichTable.DeleteColumn.Execute(null, byColumn);
+        columns = TableIn(byColumn);                                           // 열 편집은 표를 통째로 갈아 끼운다 (D-176)
         Assert.All(Rows(columns), r => Assert.Single(r.Cells));
         Assert.Single(columns.Columns);
         Assert.Equal(["r0c0", "r1c0", "r2c0", "r3c0"], Rows(columns).Select(r => TextOf(r.Cells[0])));
@@ -424,6 +427,7 @@ public class RichTableTests
         CaretIn(box, Cell(table, 0, 1));
 
         var args = Paste(box, CopiedTable(TableIn(source)));
+        table = TableIn(box);                                                  // 덮어쓰기는 표를 통째로 갈아 끼운다 (D-176)
 
         Assert.True(args.CommandCancelled);                                   // 기본 붙여넣기(표 안에 표)를 막았다
         Assert.Equal(1, TablesIn(box.Document));
@@ -441,6 +445,7 @@ public class RichTableTests
         CaretIn(box, Cell(table, 1, 1));
 
         Paste(box, CopiedTable(TableIn(source)));
+        table = TableIn(box);                                                  // 덮어쓰기는 표를 통째로 갈아 끼운다 (D-176)
 
         Assert.Equal(3, Rows(table).Count);
         Assert.All(Rows(table), r => Assert.Equal(3, r.Cells.Count));

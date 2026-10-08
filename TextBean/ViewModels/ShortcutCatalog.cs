@@ -36,6 +36,7 @@ public static class ShortcutCatalog
         new("lock", "잠그기", null),
         new("closeAllTabs", "모든 탭 닫기", null),
         new("openInExplorer", "탐색기에서 열기", null),
+        new("voiceInput", "음성 입력", null),
     ];
 
     /// 바꿀 수 없는 키 — 목록 창 아래에 회색으로 보인다 (D-111).

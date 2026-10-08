@@ -19,7 +19,7 @@
       <TextBox x:Name="QueryBox"
                Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
                IsUndoEnabled="False" AllowDrop="False" Padding="5,4"
-               FontFamily="{x:Static platform:AppFonts.Body}" FontSize="13" />
+               FontFamily="{x:Static platform:AppFonts.Fixed}" FontSize="13" />
     </DockPanel>
 
     <!-- 범위. 착각하면 "금고에 없다"는 거짓 결론이 나오므로 셋을 한눈에 둔다 -->
@@ -59,12 +59,12 @@
 
     <!-- 결과 헤더. 범위와 '못 본 것'을 같이 적는다 -->
     <TextBlock DockPanel.Dock="Top" Text="{Binding Status}" TextWrapping="Wrap"
-               Margin="0,0,0,6" Foreground="#5F5E5A" />
-    <Border DockPanel.Dock="Top" Background="#FAEEDA" BorderBrush="#EF9F27" BorderThickness="1"
+               Margin="0,0,0,6" Foreground="{DynamicResource MutedTextBrush}" />
+    <Border DockPanel.Dock="Top" Background="{DynamicResource WarnPanelBrush}" BorderBrush="{DynamicResource WarnLineBrush}" BorderThickness="1"
             Padding="8,6" Margin="0,0,0,8" CornerRadius="3"
             Visibility="{Binding HasBlindSpots, Converter={StaticResource BoolToVisibility}}">
       <TextBlock Text="확인하지 못한 곳이 있습니다. 이 결과를 '없다'로 읽지 마세요."
-                 TextWrapping="Wrap" Foreground="#854F0B" />
+                 TextWrapping="Wrap" Foreground="{DynamicResource WarnTextBrush}" />
     </Border>
 
     <TabControl>
@@ -90,7 +90,7 @@
                 <!-- 결과 목록에는 아이콘이 없다. 이 표시가 없으면 사용자는 열기 전까지
                      그것이 잠긴 문서인지 평문인지 알 수 없다. -->
                 <TextBlock DockPanel.Dock="Right" Text="평문" FontSize="11" Margin="8,0,0,0"
-                           VerticalAlignment="Center" Foreground="#854F0B">
+                           VerticalAlignment="Center" Foreground="{DynamicResource WarnTextBrush}">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
                       <Setter Property="Visibility" Value="Collapsed" />
@@ -123,7 +123,7 @@
                                 CommandParameter="{Binding}" />
                 </DockPanel.InputBindings>
                 <TextBlock DockPanel.Dock="Right" Text="평문" FontSize="11" Margin="8,0,0,0"
-                           VerticalAlignment="Center" Foreground="#854F0B">
+                           VerticalAlignment="Center" Foreground="{DynamicResource WarnTextBrush}">
                   <TextBlock.Style>
                     <Style TargetType="TextBlock">
                       <Setter Property="Visibility" Value="Collapsed" />

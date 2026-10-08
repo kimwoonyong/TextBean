@@ -67,24 +67,11 @@ public static class RichFormat
             ? Sizes.FirstOrDefault(s => s > current + 0.001, Sizes[^1])
             : Sizes.LastOrDefault(s => s < current - 0.001, Sizes[0]);
 
-    /// 고정 색 목록 [제안 — D-127]. 문서에는 색 값이 저장되므로 나중에 이름을 바꿔도 옛 문서는 그대로다.
-    public static readonly IReadOnlyDictionary<string, Color> TextColors = new Dictionary<string, Color>
-    {
-        ["빨강"] = Color.FromRgb(0xE2, 0x4B, 0x4A),
-        ["주황"] = Color.FromRgb(0xD8, 0x5A, 0x30),
-        ["초록"] = Color.FromRgb(0x3B, 0x6D, 0x11),
-        ["파랑"] = Color.FromRgb(0x18, 0x5F, 0xA5),
-        ["보라"] = Color.FromRgb(0x53, 0x4A, 0xB7),
-        ["회색"] = Color.FromRgb(0x88, 0x87, 0x80),
-    };
+    /// 고정 색 목록 [제안 — D-127] — 저장 색. 목록은 DocumentColors 한 곳에 있다(어둡게에서 보이는 색과 짝, D-162).
+    /// 문서에는 색 값이 저장되므로 나중에 이름을 바꿔도 옛 문서는 그대로다.
+    public static readonly IReadOnlyDictionary<string, Color> TextColors = DocumentColors.Text.ToDictionary(p => p.Name, p => p.Stored);
 
-    public static readonly IReadOnlyDictionary<string, Color> HighlightColors = new Dictionary<string, Color>
-    {
-        ["노랑"] = Color.FromRgb(0xFA, 0xC7, 0x75),
-        ["연두"] = Color.FromRgb(0xC0, 0xDD, 0x97),
-        ["하늘"] = Color.FromRgb(0xB5, 0xD4, 0xF4),
-        ["분홍"] = Color.FromRgb(0xF4, 0xC0, 0xD1),
-    };
+    public static readonly IReadOnlyDictionary<string, Color> HighlightColors = DocumentColors.Highlight.ToDictionary(p => p.Name, p => p.Stored);
 
     /// 서식 본문에 명령을 붙인다. 키: Ctrl+U(밑줄 — 기본 동작을 갈아 끼움) · Ctrl+Shift+X(취소선).
     public static void Attach(RichTextBox box)
@@ -93,10 +80,12 @@ public static class RichFormat
             (_, _) => ToggleDecoration(box.Selection, TextDecorationLocation.Underline), CanFormat));
         box.CommandBindings.Add(new CommandBinding(ToggleStrikethrough,
             (_, _) => ToggleDecoration(box.Selection, TextDecorationLocation.Strikethrough), CanFormat));
+        // 지금 테마에서 보이는 색으로 칠한다 — 저장 때 저장 색으로 담긴다 (D-162).
+        // 「기본색」은 본문색을 칠한다. 본문색은 박힌 기본색 목록에 있어 다시 열면 지워지고 테마를 따른다.
         box.CommandBindings.Add(new CommandBinding(SetForeground,
-            (_, e) => box.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, Brush(TextColors, e.Parameter) ?? box.Foreground), CanFormat));
+            (_, e) => box.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, Brush(DocumentColors.Text, e.Parameter) ?? box.Foreground), CanFormat));
         box.CommandBindings.Add(new CommandBinding(SetHighlight,
-            (_, e) => box.Selection.ApplyPropertyValue(TextElement.BackgroundProperty, Brush(HighlightColors, e.Parameter)), CanFormat));
+            (_, e) => box.Selection.ApplyPropertyValue(TextElement.BackgroundProperty, Brush(DocumentColors.Highlight, e.Parameter)), CanFormat));
         box.CommandBindings.Add(new CommandBinding(ClearFormatting,
             (_, _) => box.Selection.ClearAllProperties(), CanFormat));
         box.CommandBindings.Add(new CommandBinding(SetFontSize,
@@ -126,8 +115,8 @@ public static class RichFormat
     private static void CanFormat(object sender, CanExecuteRoutedEventArgs e)
         => e.CanExecute = sender is RichTextBox { IsReadOnly: false };
 
-    private static SolidColorBrush? Brush(IReadOnlyDictionary<string, Color> palette, object? name)
-        => name is string key && palette.TryGetValue(key, out var color) ? Frozen(color) : null;
+    private static SolidColorBrush? Brush(IReadOnlyList<DocumentColors.Pair> palette, object? name)
+        => palette.FirstOrDefault(p => Equals(p.Name, name)) is { } pair ? Frozen(DocumentColors.Shown(pair, AppTheme.IsDark)) : null;
 
     private static SolidColorBrush Frozen(Color color)
     {

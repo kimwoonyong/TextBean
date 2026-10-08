@@ -6,7 +6,7 @@
   <!-- 첫 ✕ 때 한 번만 뜬다 (D-096 · D-109). 꼭 알아야 할 세 가지(키 유지 · 절전 잠금 · 끄는 법)만 두 줄로 -->
   <StackPanel Margin="20,18,20,14">
     <TextBlock x:Name="Heading" Text="알림 영역으로 숨깁니다" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
-    <TextBlock x:Name="Body" Foreground="#5A5A5A" LineHeight="20" TextWrapping="Wrap">
+    <TextBlock x:Name="Body" Foreground="{DynamicResource NoticeTextBrush}" LineHeight="20" TextWrapping="Wrap">
       <Run Text="키는 그대로 남습니다. 절전하면 잠깁니다." /><LineBreak />
       <Run Text="끄기: 아이콘 우클릭 → 종료 · Ctrl+Q" />
     </TextBlock>

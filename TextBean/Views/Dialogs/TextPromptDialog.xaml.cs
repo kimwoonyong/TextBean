@@ -6,6 +6,7 @@ public partial class TextPromptDialog : Window
 {
     public TextPromptDialog(string title, string initial)
     {
+        Platform.AppTheme.Use(this);         // InitializeComponent 앞에 (D-163)
         InitializeComponent();
         Title = title;
         Input.Text = initial;

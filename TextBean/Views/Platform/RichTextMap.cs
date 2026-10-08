@@ -108,12 +108,14 @@ public sealed class RichTextMap
     }
 
     /// 서식 문서를 연다. 문서에 적힌 글꼴 이름은 지운다 — 늘 본문 글꼴(AppFonts.Body)을 따른다 (D-149).
+    /// 색은 지금 테마에 맞춘다 — 박힌 기본 글자색은 지우고, 어둡게면 보이는 색으로 (D-162).
     public static FlowDocument Load(byte[] package)
     {
         var document = new FlowDocument();
         using var stream = new MemoryStream(package, writable: false);
         new TextRange(document.ContentStart, document.ContentEnd).Load(stream, DataFormats.XamlPackage);
         ClearFonts(document);
+        DocumentColors.Prepare(document, AppTheme.IsDark);
         return document;
     }
 
@@ -152,17 +154,19 @@ public sealed class RichTextMap
         }
     }
 
+    /// 저장 · 복사용 서식 바이트. 어둡게면 나온 바이트의 색만 저장 색으로 되돌린다 — 문서에는 늘 밝은 바탕용 색이 담긴다 (D-162).
     public static byte[] Save(TextRange range)
     {
         using var stream = new MemoryStream();
         range.Save(stream, DataFormats.XamlPackage);
-        return stream.ToArray();
+        return AppTheme.IsDark ? DocumentColors.ToStored(stream.ToArray()) : stream.ToArray();
     }
 
     public static string SaveRtf(TextRange range)
     {
         using var stream = new MemoryStream();
         range.Save(stream, DataFormats.Rtf);
-        return Encoding.ASCII.GetString(stream.ToArray());   // RTF 는 7비트 — 한글은 \uN 으로 이스케이프된다
+        var rtf = Encoding.ASCII.GetString(stream.ToArray());   // RTF 는 7비트 — 한글은 \uN 으로 이스케이프된다
+        return AppTheme.IsDark ? DocumentColors.ToStoredRtf(rtf) : rtf;
     }
 }

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 
 namespace TextBean.Views.Platform;
@@ -27,10 +28,20 @@ public static class RichTable
     public static readonly RoutedUICommand NextCell = new("다음 칸", nameof(NextCell), typeof(RichTable));
     public static readonly RoutedUICommand PreviousCell = new("이전 칸", nameof(PreviousCell), typeof(RichTable));
 
+    /// 고른 칸들의 글자 가로 정렬 (D-172). 매개변수 "Left" · "Center" · "Right". 우클릭 메뉴에서만(사용자 판정).
+    public static readonly RoutedUICommand AlignCells = new("칸 정렬", nameof(AlignCells), typeof(RichTable));
+
+    /// 고른 칸들을 하나로 (D-175). 글자는 읽는 순서대로 이어 붙인다(사용자 판정).
+    public static readonly RoutedUICommand MergeCells = new("칸 합치기", nameof(MergeCells), typeof(RichTable));
+
+    /// 합친 칸을 원래 칸들로 푼다 (D-175). 합친 적 없는 칸은 나누지 않는다(사용자 판정).
+    public static readonly RoutedUICommand SplitCell = new("칸 나누기", nameof(SplitCell), typeof(RichTable));
+
     /// 우클릭 메뉴에서 표 안일 때만 보이는 항목의 Tag.
     public const string MenuTag = "table";
 
-    private static readonly Brush Line = Frozen(Color.FromRgb(0xD3, 0xD1, 0xC7));
+    /// 칸 선 — 지금 테마에서 보이는 색 (D-162). 문서에는 저장 때 저장 색으로 담긴다.
+    private static Brush Line => Frozen(DocumentColors.Shown(DocumentColors.TableLine, AppTheme.IsDark));
 
     private static Brush Frozen(Color color)
     {
@@ -50,11 +61,25 @@ public static class RichTable
         Bind(box, InsertRowBelow, cell => InsertRow(box, cell, below: true));
         Bind(box, InsertColumnLeft, cell => InsertColumn(box, cell, right: false));
         Bind(box, InsertColumnRight, cell => InsertColumn(box, cell, right: true));
-        Bind(box, DeleteRow, cell => RemoveRows(box, cell, SelectedCells(box, cell)));
-        Bind(box, DeleteColumn, cell => RemoveColumns(box, cell, SelectedCells(box, cell)));
+        Bind(box, DeleteRow, cell => RemoveRows(box, cell));
+        Bind(box, DeleteColumn, cell => RemoveColumns(box, cell));
+
+        box.CommandBindings.Add(new CommandBinding(MergeCells,
+            (_, _) => { if (CellAt(box) is { } cell) Edit(box, () => Merge(box, cell)); },
+            (_, e) => e.CanExecute = !box.IsReadOnly && CellAt(box) is { } cell && SelectedArea(box, cell) is var (grid, area) && grid.CellsIn(area).Skip(1).Any()));
+        box.CommandBindings.Add(new CommandBinding(SplitCell,
+            (_, _) => { if (CellAt(box) is { } cell) Edit(box, () => Split(box, cell)); },
+            (_, e) => e.CanExecute = !box.IsReadOnly && CellAt(box) is { RowSpan: > 1 } or { ColumnSpan: > 1 }));
         Bind(box, DeleteTable, cell => Remove(box, TableOf(cell)));
         Bind(box, NextCell, cell => Move(box, cell, forward: true));
         Bind(box, PreviousCell, cell => Move(box, cell, forward: false));
+
+        box.CommandBindings.Add(new CommandBinding(AlignCells,
+            (_, e) => { if (CellAt(box) is { } cell && ParseAlignment(e.Parameter) is { } alignment) Edit(box, () => Align(box, cell, alignment)); },
+            (_, e) => e.CanExecute = !box.IsReadOnly && CellAt(box) is not null && ParseAlignment(e.Parameter) is not null));
+
+        // 열 너비 끌기 · 표 전체 줄이기 (D-170 · D-171)
+        TableColumnResizer.Attach(box);
 
         // Tab · Shift+Tab 은 표 안에서만 가로챈다. 표 밖이면 손대지 않아 WPF 기본(탭 글자)으로 간다 (D-133).
         // 키 바인딩으로 두면 「안 됨」인 명령이 키를 삼키는지가 화면 밖에서 판정되지 않는다 — 판정이 필요 없는 쪽을 쓴다.
@@ -179,82 +204,303 @@ public static class RichTable
 
     private static void Focus(RichTextBox box, TableCell cell) => box.CaretPosition = cell.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
 
+    /// <summary>
+    /// 칸의 위(아래)에 행을 넣는다 — 칸 지도 위에서 (D-174). 넣는 자리를 위아래로 걸친 합친 칸은 한 칸 늘리고
+    /// 그 칸이 덮는 열에는 새 칸을 넣지 않는다(워드 방식, D-175). 행만 바뀌므로 그 자리에서 고친다(실행취소에 잡힌다 [실측]).
+    /// </summary>
     private static void InsertRow(RichTextBox box, TableCell cell, bool below)
     {
-        var row = (TableRow)cell.Parent;
-        var group = (TableRowGroup)row.Parent;
-        var added = NewRow(row.Cells.Count);
-        group.Rows.Insert(group.Rows.IndexOf(row) + (below ? 1 : 0), added);
-        Focus(box, added.Cells[Math.Min(row.Cells.IndexOf(cell), added.Cells.Count - 1)]);
-    }
-
-    private static void InsertColumn(RichTextBox box, TableCell cell, bool right)
-    {
         var table = TableOf(cell);
-        var index = ((TableRow)cell.Parent).Cells.IndexOf(cell) + (right ? 1 : 0);
+        var grid = TableGrid.Build(table);
+        var (top, column) = grid.Origin(cell);
+        var at = below ? grid.Corner(cell).Row + 1 : top;
 
-        foreach (var row in Rows(table)) row.Cells.Insert(Math.Min(index, row.Cells.Count), NewCell());
-        table.Columns.Insert(Math.Min(index, table.Columns.Count), NewColumn());
-        Focus(box, ((TableRow)cell.Parent).Cells[index]);
+        var added = new TableRow();
+        for (var c = 0; c < grid.ColumnCount;)
+        {
+            if (at > 0 && at < grid.RowCount && grid.At(at - 1, c) is { } over && ReferenceEquals(over, grid.At(at, c)))
+            {
+                over.RowSpan = Math.Max(1, over.RowSpan) + 1;
+                c = grid.Corner(over).Column + 1;
+                continue;
+            }
+            added.Cells.Add(NewCell());
+            c++;
+        }
+
+        var reference = grid.Rows[Math.Min(at, grid.RowCount - 1)];
+        var group = (TableRowGroup)reference.Parent;
+        group.Rows.Insert(group.Rows.IndexOf(reference) + (at >= grid.RowCount ? 1 : 0), added);
+        if (TableGrid.Build(table).At(at, column) is { } focus) Focus(box, focus);
     }
 
     /// <summary>
-    /// 선택과 겹치는 칸들 (D-138). 칸 여러 개에 걸친 선택은 WPF 가 끝을 칸 경계(행 요소)로 옮겨, 끝 위치로 칸을 찾으면 못 찾는다 [실측 — 시험].
-    /// 선택이 비었거나 끝이 표 밖이면 시작 칸 하나 — 지금처럼 하나만 지운다.
+    /// 칸의 왼쪽(오른쪽)에 열을 넣는다 — 칸 지도 위에서 (D-174). 넣는 자리를 좌우로 걸친 합친 칸은 한 칸 늘린다(D-175).
+    /// 열 정의가 바뀌므로 표를 통째로 갈아 끼운다(D-176).
     /// </summary>
-    private static List<TableCell> SelectedCells(RichTextBox box, TableCell start)
+    private static void InsertColumn(RichTextBox box, TableCell cell, bool right)
+    {
+        var table = TableOf(cell);
+        var original = TableGrid.Build(table);
+        var (row, left) = original.Origin(cell);
+        var at = right ? original.Corner(cell).Column + 1 : left;
+
+        Swap(box, table, clone =>
+        {
+            var grid = TableGrid.Build(clone);
+            var grow = new HashSet<TableCell>();
+            var inserts = new List<(TableRow Row, int Index)>();
+            for (var r = 0; r < grid.RowCount; r++)
+            {
+                if (at > 0 && at < grid.ColumnCount && grid.At(r, at - 1) is { } over && ReferenceEquals(over, grid.At(r, at)))
+                {
+                    grow.Add(over);
+                    continue;
+                }
+                inserts.Add((grid.Rows[r], grid.InsertIndex(r, at)));
+            }
+
+            var column = NewColumnBeside(box, clone, at);
+            foreach (var over in grow) over.ColumnSpan = Math.Max(1, over.ColumnSpan) + 1;
+            foreach (var (target, index) in inserts) target.Cells.Insert(Math.Min(index, target.Cells.Count), NewCell());
+            clone.Columns.Insert(Math.Min(at, clone.Columns.Count), column);
+            return (TableGrid.Build(clone).At(row, at), false);
+        });
+    }
+
+    /// <summary>
+    /// 새 열 정의. 같은 폭 나눔 표면 `1*`. 폭을 정한 표(D-170)면 옆 열과 같은 폭 — 그래서 본문보다 넓어지면 모든 열을 같은 비율로 줄인다
+    /// (넘으면 오른쪽이 잘린다 [실측]).
+    /// </summary>
+    private static TableColumn NewColumnBeside(RichTextBox box, Table table, int at)
+    {
+        if (table.Columns.Count == 0 || table.Columns.All(c => c.Width.IsStar)) return NewColumn();
+
+        var widths = TableColumnResizer.ColumnWidths(box, table);
+        var added = widths[Math.Clamp(at - 1, 0, widths.Length - 1)];
+        var limit = TableColumnResizer.LayoutWidth(box);
+        var total = widths.Sum() + added;
+        if (limit > 0 && total > limit)
+        {
+            var scale = limit / total;
+            for (var i = 0; i < table.Columns.Count; i++)
+                table.Columns[i].Width = new GridLength(Math.Max(TableColumnResizer.MinColumnWidth, Math.Round(widths[i] * scale)));
+            added = Math.Max(TableColumnResizer.MinColumnWidth, Math.Round(added * scale));
+        }
+        return new TableColumn { Width = new GridLength(added) };
+    }
+
+    /// <summary>
+    /// 표를 복제해 고치고 한 번에 갈아 끼운다 (D-176). 열 정의(TableColumn)는 실행취소에 안 잡혀 [실측 — P2],
+    /// 그 자리에서 열을 넣고 지우면 되돌린 뒤 열 수와 칸 수가 어긋났다 [실측 — 시험: 열 넣기 → 되돌리기 = 열 3 · 칸 2].
+    /// 통째로 갈아 끼우면 실행취소 한 번에 옛 표가 그대로 돌아온다 · 칸 안 그림도 산다 [실측 — R-1]. 고친 뒤 커서를 둘 칸(끝이면 true)을 돌려준다.
+    /// </summary>
+    private static void Swap(RichTextBox box, Table table, Func<Table, (TableCell? Cell, bool AtEnd)> change)
+    {
+        var clone = (Table)XamlReader.Parse(XamlWriter.Save(table));
+        var (focus, atEnd) = change(clone);
+        table.SiblingBlocks!.InsertAfter(table, clone);
+        table.SiblingBlocks!.Remove(table);
+        if (focus is null) return;
+        box.CaretPosition = atEnd ? focus.ContentEnd.GetInsertionPosition(LogicalDirection.Backward) : focus.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+    }
+
+    /// <summary>
+    /// 선택이 덮는 칸 직사각형 (D-138 · D-174). 선택이 비었거나 끝이 표 밖이면 시작 칸 하나(합친 칸이면 그 칸 전체).
+    /// 칸 선택은 직사각형이다 — 문서 순서로 겹친 칸을 다 세면 (1,1)~(2,2) 에 (2,0)이 끼어든다. 두 모서리만 쓰고, 걸친 합친 칸까지 넓힌다.
+    /// 여러 칸에 걸친 선택은 WPF 가 칸 직사각형으로 바꾸고 끝을 **다음 칸의 시작**에 둔다 [실측 — D-173]. 끝 바로 앞 글자의 칸을 마지막 모서리로 쓴다.
+    /// </summary>
+    private static (TableGrid Grid, TableGrid.Area Area) SelectedArea(RichTextBox box, TableCell start)
     {
         var table = TableOf(start);
+        var grid = TableGrid.Build(table);
         var selection = box.Selection;
-        if (selection.IsEmpty || selection.End.CompareTo(table.ContentEnd) > 0) return [start];
+        if (selection.IsEmpty || selection.End.CompareTo(table.ContentEnd) > 0) return (grid, grid.Span(start, start));
 
-        // 칸 선택은 직사각형이다 — 문서 순서로 겹친 칸을 다 세면 (1,1)~(2,2) 에 (2,0)이 끼어든다. 두 모서리(처음 · 마지막으로 겹친 칸)만 쓴다.
-        var hit = Cells(table).Where(c => c.ContentStart.CompareTo(selection.End) < 0 && c.ContentEnd.CompareTo(selection.Start) > 0).ToList();
-        return hit.Count == 0 ? [start] : [hit[0], hit[^1]];
+        var first = CellOf(selection.Start) is { } s && ReferenceEquals(TableOf(s), table) ? s : start;
+        var last = EndCell(selection.End, table) ?? first;
+
+        // 빈 칸까지 끌면 끝이 그 빈 칸의 시작에 놓여 위 규칙이 앞 칸으로 돌린다 [실측 — 렌더: 「접속 정보」 + 빈 칸 합치기가 안 됐다].
+        // 한 칸으로 줄어들 때만, 끝이 다른 빈 칸 시작이면 그 칸까지 넣는다 — 여러 칸 직사각형(D-173)은 건드리지 않는다
+        if (ReferenceEquals(first, last) && CellOf(selection.End) is { } landed && !ReferenceEquals(landed, first)
+            && ReferenceEquals(TableOf(landed), table) && landed.Blocks.All(IsBlank))
+            last = landed;
+
+        return (grid, grid.Span(first, last));
     }
 
-    private static int ColumnOf(TableCell cell) => ((TableRow)cell.Parent).Cells.IndexOf(cell);
+    private static TableCell? EndCell(TextPointer end, Table table)
+    {
+        var cell = CellOf(end);
+        if (cell is null || end.CompareTo(cell.ContentStart.GetInsertionPosition(LogicalDirection.Forward)) <= 0)
+            cell = end.GetNextInsertionPosition(LogicalDirection.Backward) is { } before ? CellOf(before) : null;
+        return cell is not null && ReferenceEquals(TableOf(cell), table) ? cell : null;
+    }
 
-    /// 선택이 걸친 행을 모두 지운다 (D-138). 모든 행이 걸치면 표를 지운다 — 빈 표를 남기지 않는다 (D-132).
-    private static void RemoveRows(RichTextBox box, TableCell start, List<TableCell> selected)
+    // ── 칸 안 정렬 (D-172) ───────────────────────────────────────────────────
+
+    private static TextAlignment? ParseAlignment(object? parameter) => parameter switch
+    {
+        "Left" => TextAlignment.Left,
+        "Center" => TextAlignment.Center,
+        "Right" => TextAlignment.Right,
+        _ => null,
+    };
+
+    /// <summary>
+    /// 선택 직사각형(두 모서리 — D-138) 안 칸들의 문단에 정렬을 직접 넣는다. 한 번의 변경이라 실행취소 한 번 [실측 — 시험].
+    /// </summary>
+    private static void Align(RichTextBox box, TableCell start, TextAlignment alignment)
+    {
+        var (grid, area) = SelectedArea(box, start);
+        foreach (var cell in grid.CellsIn(area))
+            foreach (var paragraph in Paragraphs(cell.Blocks)) paragraph.TextAlignment = alignment;
+    }
+
+    private static IEnumerable<Paragraph> Paragraphs(BlockCollection blocks)
+    {
+        foreach (var block in blocks)
+        {
+            if (block is Paragraph paragraph) yield return paragraph;
+            else if (block is Section section)
+                foreach (var inner in Paragraphs(section.Blocks)) yield return inner;
+        }
+    }
+
+    /// <summary>
+    /// 선택이 걸친 행을 모두 지운다 (D-138 · D-174). 모든 행이 걸치면 표를 지운다 — 빈 표를 남기지 않는다 (D-132).
+    /// 지우는 행에 걸친 합친 칸은 남기고 줄인다(사용자 판정 Q-4 A). 지우는 행에서 시작해 아래로 이어진 칸은 남은 첫 행으로 내린다 — 글자를 잃지 않는다.
+    /// 행만 바뀌므로 그 자리에서 고친다(실행취소에 잡힌다).
+    /// </summary>
+    private static void RemoveRows(RichTextBox box, TableCell start)
     {
         var table = TableOf(start);
-        var rows = Rows(table);
-        var first = selected.Min(c => rows.IndexOf((TableRow)c.Parent));
-        var last = selected.Max(c => rows.IndexOf((TableRow)c.Parent));
-        if (last - first + 1 == rows.Count)
+        var (grid, area) = SelectedArea(box, start);
+        if (area.Top == 0 && area.Bottom == grid.RowCount - 1)
         {
             Remove(box, table);
             return;
         }
 
-        var column = ColumnOf(start);
-        for (var i = last; i >= first; i--) ((TableRowGroup)rows[i].Parent).Rows.Remove(rows[i]);
+        var column = grid.Origin(start).Column;
+        var moves = new List<(TableCell Cell, int Column, int Span)>();
+        foreach (var cell in grid.Cells.ToList())
+        {
+            var (top, left) = grid.Origin(cell);
+            var bottom = grid.Corner(cell).Row;
+            if (bottom < area.Top || top > area.Bottom) continue;
 
-        var left = Rows(table);
-        var neighbour = left[Math.Min(first, left.Count - 1)];
-        Focus(box, neighbour.Cells[Math.Min(column, neighbour.Cells.Count - 1)]);
+            if (top >= area.Top && bottom > area.Bottom) moves.Add((cell, left, bottom - area.Bottom));
+            else if (top < area.Top) cell.RowSpan = Math.Max(1, cell.RowSpan) - (Math.Min(bottom, area.Bottom) - area.Top + 1);
+        }
+
+        // 아래 행으로 내리기 — 오른쪽 칸부터 넣어 앞서 넣은 칸이 번호를 밀지 않게.
+        // 내릴 칸이 있으면 아래 행이 반드시 있다(그 칸이 지우는 행 아래까지 이어진다). 마지막 행을 지울 때는 내릴 칸이 없다
+        foreach (var (cell, left, span) in moves.OrderByDescending(m => m.Column))
+        {
+            var below = grid.Rows[area.Bottom + 1];
+            var index = grid.InsertIndex(area.Bottom + 1, left);
+            ((TableRow)cell.Parent).Cells.Remove(cell);
+            cell.RowSpan = span;
+            below.Cells.Insert(Math.Min(index, below.Cells.Count), cell);
+        }
+
+        for (var r = area.Bottom; r >= area.Top; r--) ((TableRowGroup)grid.Rows[r].Parent).Rows.Remove(grid.Rows[r]);
+
+        var after = TableGrid.Build(table);
+        if (after.At(Math.Min(area.Top, after.RowCount - 1), Math.Min(column, after.ColumnCount - 1)) is { } focus) Focus(box, focus);
     }
 
-    /// 선택이 걸친 열을 모두 지운다 (D-138). 모든 열이 걸치면 표를 지운다 (D-132).
-    private static void RemoveColumns(RichTextBox box, TableCell start, List<TableCell> selected)
+    /// <summary>
+    /// 선택이 걸친 열을 모두 지운다 (D-138 · D-174). 모든 열이 걸치면 표를 지운다 (D-132).
+    /// 지우는 열에 걸친 합친 칸은 남기고 줄인다(Q-4 A). 열 정의가 바뀌므로 표를 통째로 갈아 끼운다(D-176).
+    /// </summary>
+    private static void RemoveColumns(RichTextBox box, TableCell start)
     {
         var table = TableOf(start);
-        var row = (TableRow)start.Parent;
-        var first = selected.Min(ColumnOf);
-        var last = selected.Max(ColumnOf);
-        if (first == 0 && last >= Rows(table).Max(r => r.Cells.Count) - 1)
+        var (grid, area) = SelectedArea(box, start);
+        if (area.Left == 0 && area.Right == grid.ColumnCount - 1)
         {
             Remove(box, table);
             return;
         }
 
-        foreach (var each in Rows(table))
-            for (var i = Math.Min(last, each.Cells.Count - 1); i >= first; i--) each.Cells.RemoveAt(i);
-        for (var i = Math.Min(last, table.Columns.Count - 1); i >= first; i--) table.Columns.RemoveAt(i);
+        var row = grid.Origin(start).Row;
+        Swap(box, table, clone =>
+        {
+            var map = TableGrid.Build(clone);
+            foreach (var cell in map.Cells.ToList())
+            {
+                var left = map.Origin(cell).Column;
+                var right = map.Corner(cell).Column;
+                if (right < area.Left || left > area.Right) continue;
 
-        Focus(box, row.Cells[Math.Min(first, row.Cells.Count - 1)]);
+                var overlap = Math.Min(right, area.Right) - Math.Max(left, area.Left) + 1;
+                if (overlap >= right - left + 1) ((TableRow)cell.Parent).Cells.Remove(cell);
+                else cell.ColumnSpan = right - left + 1 - overlap;
+            }
+            for (var c = Math.Min(area.Right, clone.Columns.Count - 1); c >= area.Left; c--) clone.Columns.RemoveAt(c);
+
+            var after = TableGrid.Build(clone);
+            return (after.At(Math.Min(row, after.RowCount - 1), Math.Min(area.Left, after.ColumnCount - 1)), false);
+        });
     }
+
+    // ── 칸 합치기 · 풀기 (D-175) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// 고른 직사각형(걸친 합친 칸까지 넓힘)을 왼쪽 위 칸 하나로. 다른 칸의 글자는 읽는 순서대로 이어 붙인다(사용자 판정) — 빈 문단은 버린다.
+    /// 칸만 바뀌므로 그 자리에서 고친다 — 실행취소 한 번 · 저장 왕복 [실측 — P3].
+    /// </summary>
+    private static void Merge(RichTextBox box, TableCell start)
+    {
+        var (grid, area) = SelectedArea(box, start);
+        var cells = grid.CellsIn(area).ToList();
+        if (cells.Count < 2 || grid.At(area.Top, area.Left) is not { } target) return;
+
+        var moved = new List<Block>();
+        foreach (var other in cells.Where(c => !ReferenceEquals(c, target)))
+        {
+            moved.AddRange(other.Blocks.Where(b => !IsBlank(b)));
+            other.Blocks.Clear();
+            ((TableRow)other.Parent).Cells.Remove(other);
+        }
+
+        if (moved.Count > 0 && target.Blocks.All(IsBlank)) target.Blocks.Clear();
+        target.Blocks.AddRange(moved);
+        if (target.Blocks.Count == 0) target.Blocks.Add(new Paragraph());
+
+        target.ColumnSpan = area.Right - area.Left + 1;
+        target.RowSpan = area.Bottom - area.Top + 1;
+        Focus(box, target);
+    }
+
+    /// 합친 칸을 1×1로 되돌리고 덮였던 자리에 빈 칸을 넣는다. 글자는 왼쪽 위 칸에 남는다(사용자 판정).
+    private static void Split(RichTextBox box, TableCell cell)
+    {
+        var grid = TableGrid.Build(TableOf(cell));
+        var (top, left) = grid.Origin(cell);
+        var (bottom, right) = grid.Corner(cell);
+
+        cell.RowSpan = 1;
+        cell.ColumnSpan = 1;
+        for (var r = top; r <= bottom; r++)
+        {
+            // 오른쪽부터 같은 번호에 넣는다 — 먼저 넣은 칸이 뒤로 밀려 제자리가 된다
+            for (var c = right; c >= left; c--)
+            {
+                if (r == top && c == left) continue;
+                var row = grid.Rows[r];
+                row.Cells.Insert(Math.Min(grid.InsertIndex(r, c), row.Cells.Count), NewCell());
+            }
+        }
+        Focus(box, cell);
+    }
+
+    /// 글자도 그림도 없는 문단.
+    private static bool IsBlank(Block block)
+        => block is Paragraph paragraph && !paragraph.Inlines.OfType<InlineUIContainer>().Any()
+           && new TextRange(paragraph.ContentStart, paragraph.ContentEnd).Text.Trim().Length == 0;
 
     /// 표를 지우고 캐럿을 그 자리 다음(없으면 앞) 문단에 둔다. 문서가 비면 빈 문단 하나.
     private static void Remove(RichTextBox box, Table table)
@@ -299,12 +545,16 @@ public static class RichTable
         }
 
         RichTextMap.ClearFonts(pasted);                // 옮기는 블록이 상대 주소 글꼴을 들고 칸에 들어가지 않게 (D-154)
+        DocumentColors.Prepare(pasted, AppTheme.IsDark);   // 복사본은 저장 색이다 — 지금 테마로 (D-162)
         var blocks = Flatten(pasted.Blocks).ToList();
         var tables = blocks.OfType<Table>().ToList();
         if (tables.Count == 0) return PasteIntoCell.NotHandled;
 
         var textOutside = blocks.Where(b => b is not Table).Any(b => new TextRange(b.ContentStart, b.ContentEnd).Text.Trim().Length > 0);
         if (tables.Count > 1 || textOutside) return PasteIntoCell.AsText;
+
+        // 합친 칸이 있는 표를 붙이거나 합친 칸이 있는 표에 붙이면 글자로 (D-177 — 칸 덮어쓰기는 격자가 고른 표만)
+        if (TableGrid.Build(tables[0]).HasMerged || TableGrid.Build(TableOf(target)).HasMerged) return PasteIntoCell.AsText;
 
         Edit(box, () => Overwrite(box, target, tables[0]));
         return PasteIntoCell.Overwritten;
@@ -322,6 +572,10 @@ public static class RichTable
         }
     }
 
+    /// <summary>
+    /// 칸부터 덮어쓴다(모자라면 행 · 열을 늘린다). 합친 칸이 없는 표끼리만 온다(D-177) — 칸 번호 = 열 번호.
+    /// 열이 늘 수 있어 표를 통째로 갈아 끼운다(D-176) — 그 자리에서 늘리면 되돌린 뒤 열 정의가 남았다.
+    /// </summary>
     private static void Overwrite(RichTextBox box, TableCell target, Table source)
     {
         var table = TableOf(target);
@@ -329,31 +583,33 @@ public static class RichTable
         var startColumn = ((TableRow)target.Parent).Cells.IndexOf(target);
         var sourceRows = Rows(source);
 
-        // 모자라면 늘린다 — 표가 네모를 유지하도록 열은 모든 행에 늘린다
-        var width = Math.Max(Rows(table).Max(r => r.Cells.Count), startColumn + sourceRows.Max(r => r.Cells.Count));
-        var lastGroup = table.RowGroups[^1];
-        while (Rows(table).Count < startRow + sourceRows.Count) lastGroup.Rows.Add(NewRow(width));
-        foreach (var row in Rows(table))
-            while (row.Cells.Count < width) row.Cells.Add(NewCell());
-        while (table.Columns.Count < width) table.Columns.Add(NewColumn());
-
-        TableCell? last = null;
-        for (var r = 0; r < sourceRows.Count; r++)
+        Swap(box, table, clone =>
         {
-            for (var c = 0; c < sourceRows[r].Cells.Count; c++)
-            {
-                var from = sourceRows[r].Cells[c];
-                var to = Rows(table)[startRow + r].Cells[startColumn + c];
-                var moved = from.Blocks.ToList();
-                from.Blocks.Clear();
-                to.Blocks.Clear();
-                to.Blocks.AddRange(moved);
-                if (to.Blocks.Count == 0) to.Blocks.Add(new Paragraph());
-                last = to;
-            }
-        }
+            // 모자라면 늘린다 — 표가 네모를 유지하도록 열은 모든 행에 늘린다
+            var width = Math.Max(Rows(clone).Max(r => r.Cells.Count), startColumn + sourceRows.Max(r => r.Cells.Count));
+            var lastGroup = clone.RowGroups[^1];
+            while (Rows(clone).Count < startRow + sourceRows.Count) lastGroup.Rows.Add(NewRow(width));
+            foreach (var row in Rows(clone))
+                while (row.Cells.Count < width) row.Cells.Add(NewCell());
+            while (clone.Columns.Count < width) clone.Columns.Add(NewColumnBeside(box, clone, clone.Columns.Count));
 
-        if (last is not null) box.CaretPosition = last.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
+            TableCell? last = null;
+            for (var r = 0; r < sourceRows.Count; r++)
+            {
+                for (var c = 0; c < sourceRows[r].Cells.Count; c++)
+                {
+                    var from = sourceRows[r].Cells[c];
+                    var to = Rows(clone)[startRow + r].Cells[startColumn + c];
+                    var moved = from.Blocks.ToList();
+                    from.Blocks.Clear();
+                    to.Blocks.Clear();
+                    to.Blocks.AddRange(moved);
+                    if (to.Blocks.Count == 0) to.Blocks.Add(new Paragraph());
+                    last = to;
+                }
+            }
+            return (last, true);
+        });
     }
 
     // ── 칸 이동 (D-133) ──────────────────────────────────────────────────────
@@ -371,9 +627,11 @@ public static class RichTable
             return;
         }
 
-        var last = (TableRow)cell.Parent;
-        var added = NewRow(last.Cells.Count);
-        ((TableRowGroup)last.Parent).Rows.Add(added);
+        // 새 행은 격자 열 수만큼 — 마지막 칸이 합친 칸이면 그 행의 칸 수가 열 수보다 적다 (D-174)
+        var grid = TableGrid.Build(TableOf(cell));
+        var lastRow = grid.Rows[^1];
+        var added = NewRow(grid.ColumnCount);
+        ((TableRowGroup)lastRow.Parent).Rows.Insert(((TableRowGroup)lastRow.Parent).Rows.IndexOf(lastRow) + 1, added);
         Focus(box, added.Cells[0]);
     }
 }

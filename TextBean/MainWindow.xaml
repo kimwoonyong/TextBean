@@ -116,7 +116,7 @@
           </Grid>
         </Viewbox>
         <Ellipse x:Name="Dot" Width="7" Height="7" HorizontalAlignment="Right" VerticalAlignment="Top"
-                 Fill="#D0392B" Stroke="White" StrokeThickness="1.2" Visibility="Collapsed" />
+                 Fill="#D0392B" Stroke="{DynamicResource SurfaceBrush}" StrokeThickness="1.2" Visibility="Collapsed" />
       </Grid>
       <DataTemplate.Triggers>
         <DataTrigger Binding="{Binding SaveState}" Value="Saving">
@@ -140,7 +140,7 @@
     <DataTemplate x:Key="TabListItemTemplate">
       <StackPanel Orientation="Horizontal">
         <Grid Width="16">
-          <TextBlock Text="✓" Foreground="#185FA5"
+          <TextBlock Text="✓" Foreground="{DynamicResource AccentBrush}"
                      Visibility="{Binding Tab.IsActive, Converter={StaticResource BoolToVisibility}}" />
         </Grid>
         <ContentPresenter Content="{Binding Tab}" ContentTemplate="{StaticResource TabStateIcon}" Margin="0,0,6,0" />
@@ -151,8 +151,62 @@
 
     <!-- 탭 줄 ◀ ▶ ▾. 포커스를 가져가지 않는다 — 넘기는 동안 본문 입력이 끊기지 않게.
          끝에 닿은 쪽은 흐리게(도구 모음 버튼 모양은 비활성 글자색만 바꾸고 그림은 그대로라). -->
-    <Style x:Key="TabStripButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
+    <!-- 납작한 단추 (D-164). Fluent 의 도구 모음 단추 모양은 높이를 바꿔도 글자가 잘려 [실측 — 계획 탐침] 모양을 직접 그린다.
+         바탕만 테마 색 — 글자색은 창(Fluent)에서 물려받는다. 마우스를 올리면 옅게 · 누르거나 목록이 열려 있으면 진하게 · 꺼지면 흐리게. -->
+    <Style x:Key="FlatButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <!-- 직접 정한 스타일은 Fluent 를 잇지 않아 예전 기본 글자색(검정)이 된다 — Fluent 본문 글자색으로 (D-168) -->
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
       <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Face" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Face" Property="Opacity" Value="0.4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="FlatToggle" TargetType="ToggleButton">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="Face" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Face" Property="Opacity" Value="0.4" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="TabStripButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="Padding" Value="5,0" />
       <Setter Property="Margin" Value="0,2,0,0" />
       <Setter Property="VerticalAlignment" Value="Stretch" />
@@ -165,21 +219,20 @@
     </Style>
 
     <!-- 서식 도구 모음 단추 (D-127). 포커스를 가져가지 않는다 — 본문의 선택이 남아 있어야 서식이 그 선택에 칠해진다. -->
-    <Style x:Key="FormatButton" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
-      <Setter Property="Focusable" Value="False" />
+    <Style x:Key="FormatButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="MinWidth" Value="28" />
       <Setter Property="Height" Value="26" />
       <Setter Property="Padding" Value="6,0" />
       <Setter Property="Margin" Value="0,0,2,0" />
     </Style>
-    <Style x:Key="FormatToggle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}">
-      <Setter Property="Focusable" Value="False" />
+    <Style x:Key="FormatToggle" TargetType="ToggleButton" BasedOn="{StaticResource FlatToggle}">
       <Setter Property="Height" Value="26" />
       <Setter Property="Padding" Value="6,0" />
       <Setter Property="Margin" Value="0,0,2,0" />
     </Style>
-    <Style x:Key="Swatch" TargetType="Button" BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
-      <Setter Property="Focusable" Value="False" />
+    <Style x:Key="Swatch" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="Width" Value="26" />
       <Setter Property="Height" Value="26" />
       <Setter Property="Padding" Value="3" />
@@ -193,14 +246,15 @@
                platform:SearchHighlightBehavior.ShowMatches="True"
                AcceptsReturn="True" AcceptsTab="True"
                VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-               FontFamily="{x:Static platform:AppFonts.Body}" FontSize="13"
+               FontFamily="{Binding Path=(platform:AppFonts.Body)}" FontSize="13"
                AllowDrop="False" Padding="10" BorderThickness="0" />
     </DataTemplate>
 
     <!-- .tbx 본문 — 서식 6종 (D-125 · D-127). 도구 모음과 본문을 한 템플릿에 둔다 — 단추의 CommandTarget 이 이름으로 본문을 찾는다. -->
     <DataTemplate x:Key="RichBodyTemplate">
       <DockPanel>
-        <Border DockPanel.Dock="Top" Padding="8,3" BorderThickness="0,0,0,1" BorderBrush="#E5E3DA" Background="#FAFAF7"
+        <Border DockPanel.Dock="Top" Padding="8,3" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource FormatBarLineBrush}" Background="{DynamicResource FormatBarBrush}"
                 Visibility="{Binding ShowFormatBar, Converter={StaticResource BoolToVisibility}}">
           <StackPanel Orientation="Horizontal">
             <Button Style="{StaticResource FormatButton}" Command="EditingCommands.ToggleBold"
@@ -219,33 +273,33 @@
                     CommandTarget="{Binding ElementName=Body}" ToolTip="취소선 (Ctrl+Shift+X)">
               <TextBlock Text="가" TextDecorations="Strikethrough" />
             </Button>
-            <Rectangle Width="1" Height="18" Margin="6,0" Fill="#D3D1C7" />
+            <Rectangle Width="1" Height="18" Margin="6,0" Fill="{DynamicResource SeparatorBrush}" />
 
             <ToggleButton x:Name="TextColorToggle" Style="{StaticResource FormatToggle}" ToolTip="글자색"
                           IsChecked="{Binding IsOpen, ElementName=TextColorPopup}">
               <StackPanel Orientation="Horizontal">
-                <Border BorderBrush="#E24B4A" BorderThickness="0,0,0,3"><TextBlock Text="가" /></Border>
-                <TextBlock Text=" ▾" Foreground="#5F5E5A" />
+                <Border BorderBrush="{DynamicResource TextColor.빨강.Brush}" BorderThickness="0,0,0,3"><TextBlock Text="가" /></Border>
+                <TextBlock Text=" ▾" Foreground="{DynamicResource MutedTextBrush}" />
               </StackPanel>
             </ToggleButton>
             <Popup x:Name="TextColorPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=TextColorToggle}">
-              <Border Background="White" BorderBrush="#D3D1C7" BorderThickness="1" Padding="4">
+              <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupLineBrush}" BorderThickness="1" Padding="4">
                 <StackPanel Orientation="Horizontal" ButtonBase.Click="OnFormatPopupPick">
                   <Button Style="{StaticResource Swatch}" Width="Auto" Padding="6,0" Content="기본"
                           Command="{x:Static platform:RichFormat.SetForeground}" CommandParameter=""
                           CommandTarget="{Binding ElementName=Body}" />
                   <Button Style="{StaticResource Swatch}" ToolTip="빨강" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="빨강" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#E24B4A" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="빨강" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.빨강.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="주황" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="주황" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#D85A30" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="주황" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.주황.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="초록" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="초록" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#3B6D11" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="초록" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.초록.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="파랑" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="파랑" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#185FA5" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="파랑" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.파랑.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="보라" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="보라" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#534AB7" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="보라" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.보라.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="회색" Command="{x:Static platform:RichFormat.SetForeground}"
-                          CommandParameter="회색" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#888780" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="회색" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource TextColor.회색.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                 </StackPanel>
               </Border>
             </Popup>
@@ -253,24 +307,28 @@
             <ToggleButton x:Name="HighlightToggle" Style="{StaticResource FormatToggle}" ToolTip="형광펜"
                           IsChecked="{Binding IsOpen, ElementName=HighlightPopup}">
               <StackPanel Orientation="Horizontal">
-                <Border Background="#FAC775" Padding="3,0"><TextBlock Text="형광펜" Foreground="#412402" /></Border>
-                <TextBlock Text=" ▾" Foreground="#5F5E5A" />
+                <Border Background="{DynamicResource Highlight.노랑.Brush}" Padding="3,0">
+                  <TextBlock Text="형광펜" Foreground="{DynamicResource HighlightLabelTextBrush}" />
+                </Border>
+                <TextBlock Text=" ▾" Foreground="{DynamicResource MutedTextBrush}" />
               </StackPanel>
             </ToggleButton>
             <Popup x:Name="HighlightPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=HighlightToggle}">
-              <Border Background="White" BorderBrush="#D3D1C7" BorderThickness="1" Padding="4">
+              <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupLineBrush}" BorderThickness="1" Padding="4">
                 <StackPanel Orientation="Horizontal" ButtonBase.Click="OnFormatPopupPick">
                   <Button Style="{StaticResource Swatch}" Width="Auto" Padding="6,0" Content="없음"
                           Command="{x:Static platform:RichFormat.SetHighlight}" CommandParameter=""
                           CommandTarget="{Binding ElementName=Body}" />
                   <Button Style="{StaticResource Swatch}" ToolTip="노랑" Command="{x:Static platform:RichFormat.SetHighlight}"
-                          CommandParameter="노랑" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#FAC775" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="노랑" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource Highlight.노랑.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="연두" Command="{x:Static platform:RichFormat.SetHighlight}"
-                          CommandParameter="연두" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#C0DD97" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="연두" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource Highlight.연두.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="하늘" Command="{x:Static platform:RichFormat.SetHighlight}"
-                          CommandParameter="하늘" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#B5D4F4" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="하늘" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource Highlight.하늘.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                   <Button Style="{StaticResource Swatch}" ToolTip="분홍" Command="{x:Static platform:RichFormat.SetHighlight}"
-                          CommandParameter="분홍" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="#F4C0D1" Stroke="#B4B2A9" StrokeThickness="0.5" /></Button>
+                          CommandParameter="분홍" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource Highlight.분홍.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
+                  <Button Style="{StaticResource Swatch}" ToolTip="빨강" Command="{x:Static platform:RichFormat.SetHighlight}"
+                          CommandParameter="빨강" CommandTarget="{Binding ElementName=Body}"><Rectangle Width="18" Height="18" Fill="{DynamicResource Highlight.빨강.Brush}" Stroke="{DynamicResource SwatchLineBrush}" StrokeThickness="0.5" /></Button>
                 </StackPanel>
               </Border>
             </Popup>
@@ -281,7 +339,7 @@
               <TextBlock Text="{Binding (platform:RichFormat.CurrentSize), ElementName=Body, StringFormat={}{0} ▾}" />
             </ToggleButton>
             <Popup x:Name="SizePopup" StaysOpen="False" PlacementTarget="{Binding ElementName=SizeToggle}">
-              <Border Background="White" BorderBrush="#D3D1C7" BorderThickness="1" Padding="2">
+              <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupLineBrush}" BorderThickness="1" Padding="2">
                 <StackPanel ButtonBase.Click="OnFormatPopupPick">
                   <StackPanel.Resources>
                     <Style TargetType="Button" BasedOn="{StaticResource FormatButton}">
@@ -302,8 +360,12 @@
                 </StackPanel>
               </Border>
             </Popup>
-            <Rectangle Width="1" Height="18" Margin="6,0" Fill="#D3D1C7" />
+            <Rectangle Width="1" Height="18" Margin="6,0" Fill="{DynamicResource SeparatorBrush}" />
 
+            <!-- 음성 입력 (D-180) — 셸 명령이라 창 DataContext 로 간다. 어느 탭의 도구 막대에서나 같은 상태다 -->
+            <Button Style="{StaticResource FormatButton}" ToolTip="음성 입력 — 말하면 쉴 때마다 받아써 넣습니다. 다시 누르면 멈춥니다"
+                    Content="{Binding DataContext.DictationButtonText, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Command="{Binding DataContext.ToggleDictationCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
             <!-- 그림 넣기 (D-140) — 파일에서. 캡처는 Ctrl+V 로 붙인다 -->
             <Button Style="{StaticResource FormatButton}" Content="그림" ToolTip="파일에서 그림 넣기 (캡처는 Ctrl+V)"
                     Command="{x:Static platform:RichImage.InsertFromFile}" CommandTarget="{Binding ElementName=Body}" />
@@ -313,12 +375,12 @@
               <TextBlock Text="표 ▾" />
             </ToggleButton>
             <Popup x:Name="TablePopup" StaysOpen="False" PlacementTarget="{Binding ElementName=TableToggle}">
-              <Border Background="White" BorderBrush="#D3D1C7" BorderThickness="1" Padding="6">
+              <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupLineBrush}" BorderThickness="1" Padding="6">
                 <platform:TableSizePicker Command="{x:Static platform:RichTable.InsertTable}"
                                           CommandTarget="{Binding ElementName=Body}" Picked="OnFormatPopupPick" />
               </Border>
             </Popup>
-            <Rectangle Width="1" Height="18" Margin="6,0" Fill="#D3D1C7" />
+            <Rectangle Width="1" Height="18" Margin="6,0" Fill="{DynamicResource SeparatorBrush}" />
 
             <Button Style="{StaticResource FormatButton}" Content="서식 지우기"
                     Command="{x:Static platform:RichFormat.ClearFormatting}" CommandTarget="{Binding ElementName=Body}" />
@@ -332,14 +394,21 @@
                      platform:SearchHighlightBehavior.ShowMatches="True"
                      AcceptsReturn="True" AcceptsTab="True"
                      VerticalScrollBarVisibility="Auto"
-                     FontFamily="{x:Static platform:AppFonts.Body}" FontSize="13"
+                     FontFamily="{Binding Path=(platform:AppFonts.Body)}" FontSize="13"
+                     Foreground="{DynamicResource BodyTextBrush}"
                      AllowDrop="False" Padding="10" BorderThickness="0">
           <RichTextBox.Resources>
+            <!-- Fluent 의 FlowDocument 스타일이 글꼴 · 크기를 Georgia 16 으로 덮는다 [실측 — 계획 탐침] — 본문 글꼴 · 13 으로 되돌린다 (D-163).
+                 본문 글자색(BodyTextBrush)은 박힌 기본색 목록에 있다 — 저장 때 박혀도 다시 열면 지워진다 (D-162) -->
+            <Style TargetType="FlowDocument">
+              <Setter Property="FontFamily" Value="{Binding Path=(platform:AppFonts.Body)}" />
+              <Setter Property="FontSize" Value="13" />
+            </Style>
             <!-- FlowDocument 문단은 기본으로 위아래 여백이 한 줄씩 있다 — TextBox 와 같은 줄 간격으로 맞춘다 -->
             <Style TargetType="Paragraph">
               <Setter Property="Margin" Value="0" />
             </Style>
-            <Style TargetType="MenuItem">
+            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
               <Setter Property="CommandTarget" Value="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
             </Style>
           </RichTextBox.Resources>
@@ -358,10 +427,22 @@
               <Separator Tag="table" />
               <MenuItem Tag="table" Header="행 지우기" Command="{x:Static platform:RichTable.DeleteRow}" />
               <MenuItem Tag="table" Header="열 지우기" Command="{x:Static platform:RichTable.DeleteColumn}" />
-              <MenuItem Tag="table" Header="표 지우기" Command="{x:Static platform:RichTable.DeleteTable}" Foreground="#A32D2D" />
+              <Separator Tag="table" />
+              <!-- 칸 합치기 · 풀기 (D-175) — 합치기는 여러 칸을 골랐을 때, 나누기는 합친 칸 안일 때만 된다(아니면 흐리게) -->
+              <MenuItem Tag="table" Header="칸 합치기" Command="{x:Static platform:RichTable.MergeCells}" />
+              <MenuItem Tag="table" Header="칸 나누기" Command="{x:Static platform:RichTable.SplitCell}" />
+              <Separator Tag="table" />
+              <!-- 칸 안 가로 정렬 (D-172) — 고른 칸들. 우클릭에서만(사용자 판정).
+                   하위 메뉴(정렬 ▸)로 두지 않는다 — 하위 항목은 다른 팝업이라 위 MenuItem 스타일의 CommandTarget(AncestorType=ContextMenu)이
+                   닿는지 화면 밖 시험으로 볼 수 없다. 닿지 않으면 「눌러도 무반응」이 된다(TabItem 우클릭 메뉴 주석과 같은 함정) -->
+              <MenuItem Tag="table" Header="왼쪽 정렬" Command="{x:Static platform:RichTable.AlignCells}" CommandParameter="Left" />
+              <MenuItem Tag="table" Header="가운데 정렬" Command="{x:Static platform:RichTable.AlignCells}" CommandParameter="Center" />
+              <MenuItem Tag="table" Header="오른쪽 정렬" Command="{x:Static platform:RichTable.AlignCells}" CommandParameter="Right" />
+              <Separator Tag="table" />
+              <MenuItem Tag="table" Header="표 지우기" Command="{x:Static platform:RichTable.DeleteTable}" Foreground="{DynamicResource DangerTextBrush}" />
               <Separator Tag="image" />
               <MenuItem Tag="image" Header="원래 크기" Command="{x:Static platform:RichImage.OriginalSize}" />
-              <MenuItem Tag="image" Header="그림 지우기" Command="{x:Static platform:RichImage.DeleteImage}" Foreground="#A32D2D" />
+              <MenuItem Tag="image" Header="그림 지우기" Command="{x:Static platform:RichImage.DeleteImage}" Foreground="{DynamicResource DangerTextBrush}" />
             </ContextMenu>
           </RichTextBox.ContextMenu>
         </RichTextBox>
@@ -373,33 +454,84 @@
        본문 TextBox 가 먼저 쓰는 키는 고를 수 없다 (D-112) -->
 
   <DockPanel>
-    <ToolBar DockPanel.Dock="Top">
-      <Button Content="+ 폴더"   Command="{Binding NewFolderCommand}" />
-      <Button Content="+ 문서"   Command="{Binding NewDocumentCommand}" />
-      <Button Content="이름변경" Command="{Binding RenameCommand}" />
-      <Button Content="삭제"     Command="{Binding DeleteCommand}" />
-      <Separator />
-      <!-- 자동 저장이라 저장 버튼을 두지 않는다 (D-015). Ctrl+S 는 즉시 저장으로 남는다. -->
-      <Button Content="전체 복사"      Command="{Binding CopyAllCommand}"    IsEnabled="{Binding Editor.CanCopy}" />
-      <Button Content="열었을 때 상태 보기" Command="{Binding OpenBackupCommand}" />
-      <Separator />
-      <Button Content="새로고침"       Command="{Binding RefreshCommand}" />
-      <Button Content="휴지통 비우기"  Command="{Binding EmptyTrashCommand}" />
-      <Button Content="금고 폴더 변경" Command="{Binding ChangeRootCommand}" />
-      <Separator />
-      <!-- 키를 바꿔 끼우면 열리는 문서가 달라진다. 잠그기는 키를 버리고 열린 문서를 닫는다 (D-048) -->
-      <Button Content="{Binding ChangeKeyLabel}" Command="{Binding ChangeKeyCommand}" />
-      <Button Content="잠그기"  Command="{Binding LockCommand}" />
-      <Separator />
-      <Button Content="단축키" Command="{Binding OpenShortcutsCommand}" ToolTip="{Binding ShortcutsToolTip}" />
-      <Button Content="종료" Command="{Binding ExitCommand}" ToolTip="{Binding ExitToolTip}" />
-    </ToolBar>
+    <!-- 위 줄 메뉴 (D-158) — 파일 · 편집 · 보기 · 보안 · 도움말. 명령은 예전 도구 모음 단추와 같다 — 놓는 자리만 바뀌었다.
+         오른쪽 글자는 단축키 표를 따른다(D-159) — 단축키 설정에서 바꾼 키가 그대로 보인다.
+         메뉴 이름에 밑줄 글자(Alt+F)는 달지 않는다 — 사용자 Alt 조합 단축키와 겹치지 않게 (D-160) -->
+    <!-- 아래 1px 선 — 메뉴 줄과 트리 · 본문을 가른다 (D-166, 사용자 판정 「선만」) -->
+    <Menu x:Name="TopMenu" DockPanel.Dock="Top" Padding="2"
+          BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+      <MenuItem Header="파일">
+        <MenuItem Header="새 문서" Command="{Binding NewDocumentCommand}" InputGestureText="{Binding Shortcuts[newDocument]}" />
+        <MenuItem Header="새 폴더" Command="{Binding NewFolderCommand}" InputGestureText="{Binding Shortcuts[newFolder]}" />
+        <MenuItem Header="이름 변경" Command="{Binding RenameCommand}" InputGestureText="{Binding Shortcuts[rename]}" />
+        <MenuItem Header="삭제" Command="{Binding DeleteCommand}" InputGestureText="{Binding Shortcuts[delete]}" />
+        <Separator />
+        <MenuItem Header="파일 탐색기에서 열기" Command="{Binding OpenInExplorerCommand}" InputGestureText="{Binding Shortcuts[openInExplorer]}" />
+        <Separator />
+        <MenuItem Header="휴지통 비우기" Command="{Binding EmptyTrashCommand}" InputGestureText="{Binding Shortcuts[emptyTrash]}" />
+        <MenuItem Header="금고 폴더 변경" Command="{Binding ChangeRootCommand}" InputGestureText="{Binding Shortcuts[changeRoot]}" />
+        <Separator />
+        <MenuItem Header="종료" Command="{Binding ExitCommand}" InputGestureText="{Binding Shortcuts[exit]}" />
+      </MenuItem>
+      <MenuItem Header="편집">
+        <MenuItem Header="전체 복사" Command="{Binding CopyAllCommand}" IsEnabled="{Binding Editor.CanCopy}" InputGestureText="{Binding Shortcuts[copyAll]}" />
+        <MenuItem Header="열었을 때 상태 보기" Command="{Binding OpenBackupCommand}" InputGestureText="{Binding Shortcuts[openBackup]}" />
+        <Separator />
+        <MenuItem Header="검색" Command="{Binding OpenFindBarCommand}" InputGestureText="{Binding Shortcuts[findBar]}" />
+        <MenuItem Header="상세 검색" Command="{Binding OpenSearchWindowCommand}" InputGestureText="{Binding Shortcuts[searchVault]}" />
+        <Separator />
+        <!-- 음성 입력 (D-180) — .txt 는 서식 도구 막대가 없어 여기 · 단축키로만 켠다 -->
+        <MenuItem Header="{Binding DictationMenuHeader}" Command="{Binding ToggleDictationCommand}" InputGestureText="{Binding Shortcuts[voiceInput]}" />
+      </MenuItem>
+      <MenuItem Header="보기">
+        <MenuItem Header="새로고침" Command="{Binding RefreshCommand}" InputGestureText="{Binding Shortcuts[refresh]}" />
+        <Separator />
+        <!-- 본문 글꼴 (D-155) — 앱 전체 본문(.tbx · .txt). 지금 글꼴에 ✓ -->
+        <MenuItem x:Name="FontMenu" Header="글꼴" ItemsSource="{Binding FontMenu}">
+          <MenuItem.ItemContainerStyle>
+            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+              <Setter Property="Header" Value="{Binding Label}" />
+              <Setter Property="IsChecked" Value="{Binding IsCurrent, Mode=OneWay}" />
+              <Setter Property="Command" Value="{Binding DataContext.SetBodyFontCommand, RelativeSource={RelativeSource AncestorType=Menu}}" />
+              <Setter Property="CommandParameter" Value="{Binding Id}" />
+            </Style>
+          </MenuItem.ItemContainerStyle>
+        </MenuItem>
+        <!-- 테마 (D-161) — 밝게 · 어둡게. 고르면 바로 바뀐다 — 열린 본문은 거뒀다 다시 연다(실행취소 기록 · 커서만 초기화). 지금 테마에 ✓ -->
+        <MenuItem x:Name="ThemeMenu" Header="테마" ItemsSource="{Binding ThemeMenu}">
+          <MenuItem.ItemContainerStyle>
+            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+              <Setter Property="Header" Value="{Binding Label}" />
+              <Setter Property="IsChecked" Value="{Binding IsCurrent, Mode=OneWay}" />
+              <Setter Property="Command" Value="{Binding DataContext.SetThemeCommand, RelativeSource={RelativeSource AncestorType=Menu}}" />
+              <Setter Property="CommandParameter" Value="{Binding Id}" />
+            </Style>
+          </MenuItem.ItemContainerStyle>
+        </MenuItem>
+      </MenuItem>
+      <MenuItem Header="보안">
+        <!-- 키를 바꿔 끼우면 열리는 문서가 달라진다. 잠그기는 키를 버리고 열린 문서를 닫는다 (D-048) -->
+        <MenuItem Header="{Binding ChangeKeyLabel}" Command="{Binding ChangeKeyCommand}" InputGestureText="{Binding Shortcuts[changeKey]}" />
+        <MenuItem Header="잠그기" Command="{Binding LockCommand}" InputGestureText="{Binding Shortcuts[lock]}" />
+      </MenuItem>
+      <MenuItem Header="도움말">
+        <MenuItem Header="단축키" Command="{Binding OpenShortcutsCommand}" InputGestureText="{Binding Shortcuts[shortcuts]}" />
+      </MenuItem>
+    </Menu>
 
-    <StatusBar DockPanel.Dock="Bottom">
+    <!-- Fluent 상태 줄은 바깥 여백 12 · 칸 여백 4 로 49px 이었다 [실측] — 예전과 비슷한 23px 로 (D-167, 사용자 판정 「보통」) -->
+    <StatusBar DockPanel.Dock="Bottom" Padding="0" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,1,0,0">
+      <StatusBar.Resources>
+        <Style TargetType="StatusBarItem" BasedOn="{StaticResource {x:Type StatusBarItem}}">
+          <Setter Property="Padding" Value="8,3" />
+        </Style>
+      </StatusBar.Resources>
       <!-- 드래그 중 금지 커서만으로는 왜 안 되는지 알 수 없다. 사유를 여기에 띄운다. -->
-      <TextBlock Text="{Binding DropHint}" Foreground="#B5452F" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding DropHint}" Foreground="{DynamicResource HintTextBrush}" FontWeight="SemiBold" />
       <!-- 저장 여부가 어디에도 안 보이면 "저장 버튼이 반응 없다"로 느껴진다 -->
       <TextBlock Text="{Binding Editor.StatusText}" FontWeight="SemiBold" />
+      <!-- 음성 입력 중일 때만 글자가 있다 — 어느 문서에 들어가는지까지 (plan R-9) -->
+      <TextBlock Text="{Binding DictationStatusText}" Foreground="{DynamicResource DangerTextBrush}" />
       <Separator />
       <!-- 지금 어느 키를 쓰는지(몇 개가 맞는지)가 안 보이면 "문서가 안 열린다"를 고장으로 읽는다 -->
       <TextBlock Text="{Binding KeyStatusText}" />
@@ -447,7 +579,7 @@
         </TreeView.ContextMenu>
         <TreeView.ItemContainerStyle>
           <!-- SelectedItem이 읽기 전용이라, 선택을 코드에서 되돌리려면 컨테이너를 묶어야 한다 -->
-          <Style TargetType="TreeViewItem">
+          <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
           </Style>
@@ -498,10 +630,12 @@
              ContentTemplate 은 TextBox 인스턴스를 하나만 만들어 돌려 써서, 본문이 같은 두 문서
              사이에 실행취소 스택이 넘어간다 [실측] (F-1). 본문은 아래 ItemsControl 이 탭마다 만든다.
              바깥 틀(TabControl 템플릿)만 다시 쓴다 — 탭이 넘쳐도 한 줄 · 넘김 · 목록 (D-074).
-             TabItem 템플릿은 그대로 둔다: 머리글 ContentPresenter 가 그 안에 있어 빠뜨리면
-             빌드·파싱 모두 통과하고 머리글만 빈다 (LL-014). 내용 호스트(PART_SelectedContentHost)도 남긴다 —
+             TabItem 템플릿은 D-169 에서 다시 썼다(선택 탭 표시) — 머리글 ContentPresenter(ContentSource=Header)를
+             빠뜨리면 빌드·파싱 모두 통과하고 머리글만 빈다 (LL-014). 내용 호스트(PART_SelectedContentHost)도 남긴다 —
              부품이 빠지면 TabStrip 이 던지고, 시험(TabStripTests)이 실제 템플릿을 적용해 본다. -->
-        <platform:TabStrip x:Name="TabStrip" DockPanel.Dock="Top"
+        <!-- 글자색을 Fluent 본문 글자색으로 정한다 (D-168). TabStrip 은 TabControl 을 이어받은 직접 만든 컨트롤이라 Fluent 스타일이 붙지 않고
+             예전 기본(검정)을 쓴다 — 어둡게에서 선택 안 된 탭 글자가 검게 묻혔다(사용자 실기 지적) [실측 — 사본] -->
+        <platform:TabStrip x:Name="TabStrip" DockPanel.Dock="Top" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                     ItemsSource="{Binding Tabs}"
                     SelectedItem="{Binding ActiveTab, Mode=TwoWay}"
                     BorderThickness="0" Padding="0" Background="Transparent"
@@ -575,7 +709,29 @@
           </platform:TabStrip.ItemTemplate>
           <platform:TabStrip.ItemContainerStyle>
             <!-- AncestorType=TabControl 은 하위 클래스(TabStrip)도 찾는다 [실측 — 계획 검토] -->
-            <Style TargetType="TabItem">
+            <Style TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+              <!-- 선택 탭 (D-169, 사용자 판정 A2). Fluent 탭 모양은 테두리 설정을 무시해 [실측 — 사본] 모양을 직접 그린다:
+                   선택 탭 = 위쪽 강조선 + 서식 도구 모음 색 바탕 — 아래 도구 모음과 한 덩어리로 이어진다. 탭 줄 뒤는 창 바탕.
+                   머리글 ContentPresenter 를 빠뜨리면 머리글만 빈다 (LL-014) -->
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Face" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,2,0,0"
+                            CornerRadius="4,4,0,0" Padding="10,4,6,4" Margin="0,0,2,0">
+                      <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Face" Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+                      </Trigger>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Face" Property="Background" Value="{DynamicResource FormatBarBrush}" />
+                        <Setter TargetName="Face" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
               <!-- ContextMenu 는 별도 팝업 트리라 TabControl 을 조상으로 찾지 못한다.
                    위 ✕ 버튼이 쓰는 AncestorType 관용구를 메뉴 안에 복사하면 Command 가 null 이 되고,
                    빌드·파싱·테스트·경고 0 을 전부 통과한 채 "눌러도 무반응"으로만 드러난다 [실측].
@@ -619,8 +775,8 @@
         <!-- 문서 안에서 찾기. 본문을 가리지 않도록 띠로 둔다 —
              찾기 창이 찾으려는 본문을 가리는 것이 오래된 불만이다.
              DataContext 를 활성 탭으로 두면 검색창의 복사 가로채기가 그대로 붙는다. -->
-        <Border DockPanel.Dock="Top" Background="#F1EFE8" Padding="8,6"
-                BorderBrush="#D3D1C7" BorderThickness="0,0,0,1"
+        <Border DockPanel.Dock="Top" Background="{DynamicResource PanelBrush}" Padding="8,6"
+                BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1"
                 DataContext="{Binding Editor}"
                 Visibility="{Binding DataContext.IsFindBarOpen,
                              RelativeSource={RelativeSource AncestorType=Window},
@@ -648,7 +804,7 @@
                      platform:EditorBehavior.InterceptCopySelection="True"
                      IsUndoEnabled="False"
                      AllowDrop="False" Padding="4,2"
-                     FontFamily="{x:Static platform:AppFonts.Body}" FontSize="12">
+                     FontFamily="{x:Static platform:AppFonts.Fixed}" FontSize="12">
               <!-- 검색어 자체가 비밀값이다. 실행취소 스택은 새 저장소가 되고,
                    맨 TextBox 는 클립보드 기록 제외를 타지 않는다 [실측]. -->
               <TextBox.InputBindings>
@@ -663,7 +819,9 @@
           </DockPanel>
         </Border>
 
-        <Grid>
+        <!-- 본문 자리는 문서가 없어도 입력 칸 바탕으로 칠한다 (D-166). Fluent 는 창 바탕(Mica)이 비치고 트리 · 구분 막대가 투명해,
+             칠하지 않으면 문서가 없을 때 트리와 본문의 경계가 사라진다(사용자 실기 지적). 탭 줄 뒤는 칠하지 않는다 — 선택 탭이 도드라지게 (D-169) -->
+        <Grid Background="{DynamicResource TextControlBackground}">
           <TextBlock Text="왼쪽에서 문서를 고르세요" Foreground="Gray" Margin="16"
                      Visibility="{Binding HasNoTabs, Converter={StaticResource BoolToVisibility}}" />
 
@@ -684,14 +842,14 @@
                           Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVisibility}}">
                     <Border.Style>
                       <Style TargetType="Border">
-                        <Setter Property="Background" Value="#FBECEA" />
-                        <Setter Property="BorderBrush" Value="#E0B4AA" />
+                        <Setter Property="Background" Value="{DynamicResource LockBannerBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource LockBannerLineBrush}" />
                         <Style.Triggers>
                           <!-- 평문은 고장이 아니라 정상 동작이다. 붉은 톤을 그대로 쓰면
                                사용자가 앱이 망가졌다고 읽는다. -->
                           <DataTrigger Binding="{Binding IsPlainText}" Value="True">
-                            <Setter Property="Background" Value="#F3F2EC" />
-                            <Setter Property="BorderBrush" Value="#D9D6CA" />
+                            <Setter Property="Background" Value="{DynamicResource PlainBannerBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource PlainBannerLineBrush}" />
                           </DataTrigger>
                         </Style.Triggers>
                       </Style>
@@ -699,10 +857,10 @@
                     <TextBlock Text="{Binding LockReason}" TextWrapping="Wrap">
                       <TextBlock.Style>
                         <Style TargetType="TextBlock">
-                          <Setter Property="Foreground" Value="#B5452F" />
+                          <Setter Property="Foreground" Value="{DynamicResource HintTextBrush}" />
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding IsPlainText}" Value="True">
-                              <Setter Property="Foreground" Value="#5F5E5A" />
+                              <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
                             </DataTrigger>
                           </Style.Triggers>
                         </Style>

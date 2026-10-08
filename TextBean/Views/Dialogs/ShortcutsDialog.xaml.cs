@@ -12,6 +12,7 @@ public partial class ShortcutsDialog : Window
 {
     public ShortcutsDialog()
     {
+        Platform.AppTheme.Use(this);         // InitializeComponent 앞에 (D-163)
         InitializeComponent();
         PreviewKeyDown += OnPreviewKeyDown;
     }

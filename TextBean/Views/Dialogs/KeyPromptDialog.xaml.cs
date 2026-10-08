@@ -12,6 +12,7 @@ public partial class KeyPromptDialog : Window
 
     public KeyPromptDialog(string title, string message, bool confirm)
     {
+        Platform.AppTheme.Use(this);         // InitializeComponent 앞에 (D-163)
         InitializeComponent();
         Title = title;
         Message.Text = message;

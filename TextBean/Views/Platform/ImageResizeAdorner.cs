@@ -16,8 +16,9 @@ public sealed class ImageResizeAdorner : Adorner
 {
     private const double HandleSize = 9;
 
-    private static readonly Brush Line = Frozen(Color.FromRgb(0x18, 0x5F, 0xA5));
-    private static readonly Pen Outline = FrozenPen();
+    // 지금 테마의 앱 색 (D-163) — 손잡이는 그림을 고를 때마다 새로 만든다.
+    private static Brush Line => AppTheme.Brush("AccentBrush");
+    private static Pen Outline => FrozenPen();
 
     private readonly VisualCollection _visuals;
     private readonly Thumb[] _handles;
@@ -52,7 +53,7 @@ public sealed class ImageResizeAdorner : Adorner
     private Thumb Handle(int sx, int sy, Cursor cursor)
     {
         var face = new FrameworkElementFactory(typeof(Border));
-        face.SetValue(Border.BackgroundProperty, Brushes.White);
+        face.SetValue(Border.BackgroundProperty, AppTheme.Brush("SurfaceBrush"));
         face.SetValue(Border.BorderBrushProperty, Line);
         face.SetValue(Border.BorderThicknessProperty, new Thickness(1));
 
@@ -116,16 +117,9 @@ public sealed class ImageResizeAdorner : Adorner
     protected override void OnRender(DrawingContext drawingContext)
         => drawingContext.DrawRectangle(null, Outline, new Rect(AdornedElement.RenderSize));
 
-    private static Brush Frozen(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
-
     private static Pen FrozenPen()
     {
-        var pen = new Pen(Frozen(Color.FromRgb(0x18, 0x5F, 0xA5)), 1);
+        var pen = new Pen(Line, 1);
         pen.Freeze();
         return pen;
     }

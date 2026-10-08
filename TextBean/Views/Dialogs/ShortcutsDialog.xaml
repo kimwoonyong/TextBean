@@ -12,7 +12,7 @@
       <Button Content="키 바꾸기" Width="88" HorizontalAlignment="Left" Command="{Binding ChangeCommand}" />
     </DockPanel>
 
-    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="#C0392B" TextWrapping="Wrap" Margin="0,8,0,0" />
+    <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="{DynamicResource ErrorTextBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
 
     <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding FixedKeys}" Margin="0,10,0,0" Foreground="Gray">
       <ItemsControl.Template>
@@ -41,7 +41,8 @@
               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
       <!-- 줄을 두 번 누르면 바로 키 받기 — [키 바꾸기]와 같다 -->
       <ListView.ItemContainerStyle>
-        <Style TargetType="ListViewItem">
+        <!-- 표(GridView) 줄 모양을 이어받는다 — 일반 ListViewItem 모양을 이어받으면 칸 대신 줄 객체 이름이 찍힌다 [실측 — 렌더] (D-163) -->
+        <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
           <EventSetter Event="MouseDoubleClick" Handler="OnRowDoubleClick" />
         </Style>
       </ListView.ItemContainerStyle>

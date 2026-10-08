@@ -60,4 +60,26 @@
     <Resource Include="Assets\Fonts\OFL.txt" />
   </ItemGroup>
 
+  <!-- 음성 입력 (add-voice-input · D-179 · ESC-03 승인 2026-10-08). 모두 MIT. 소리는 PC 밖으로 나가지 않는다.
+       Whisper.net 이 따라 들이는 것: Microsoft.Extensions.AI.Abstractions · System.Numerics.Tensors · Whisper.net.Runtime.Metal(macOS 전용).
+       NAudio.Wasapi 가 따라 들이는 것: NAudio.Core. -->
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+  </ItemGroup>
+
+  <!-- Whisper.net 은 DLL 을 exe 폴더 쪽의 runtimes\<rid>\ 에서만 찾는다. 단일 파일 안에 두면 추출 폴더로 풀려
+       「Native Library not found」로 시작부터 실패한다 [실측 — research 0-1절]. 그래서 win-x64 DLL 4개는 단일 파일 밖
+       exe 옆에 두고, 이 앱이 쓰지 않는 다른 CPU 용(x86 · ARM64)은 뺀다 (D-183). 로드 전 해시 확인은 WhisperSpeechToText. -->
+  <Target Name="PlaceWhisperNatives" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <_OtherWhisperNative Include="@(None)" Condition="$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/win-x86/')) Or $([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/win-arm64/'))" />
+      <None Remove="@(_OtherWhisperNative)" />
+      <None Condition="$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/win-x64/'))">
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </None>
+    </ItemGroup>
+  </Target>
+
 </Project>
