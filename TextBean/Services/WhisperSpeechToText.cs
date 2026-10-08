@@ -67,6 +67,28 @@ public sealed class WhisperSpeechToText : ISpeechToText
     public static int AudioContextFor(double seconds)
         => Math.Min(1500, (int)Math.Ceiling((seconds + AudioContextMarginSeconds) / 30.0 * 1500 / 64) * 64);
 
+    /// <summary>
+    /// Whisper 가 조용하거나 알아듣기 힘든 소리(먼 말 · 웃음 · 물건 소리)에서 지어내는 방송 끝맺음 문장 (D-195).
+    /// 소리 크기로도 Whisper 확률로도 가려지지 않았다 — 이 문장들은 확률이 0.85~0.97 로 진짜 말보다 높았다 [실측 — 노트북 녹음].
+    /// 「감사합니다」 한마디는 회의에서 실제로 하는 말이라 넣지 않는다.
+    /// </summary>
+    public static IReadOnlyList<string> KnownHallucinations { get; } =
+    [
+        "이 시각 세계였습니다",        // 노트북 녹음 짧은 조각에서 여러 번 [실측]
+        "다음 영상에서 만나요",        // 약한 잡음 10초에서 [실측 — research 0-1절]
+        "시청해 주셔서 감사합니다",
+        "구독과 좋아요 부탁드립니다",
+    ];
+
+    /// 구간 글자 전체가 목록 문장과 같은가(공백 · 문장부호 빼고). 문장 안에 섞여 있으면 진짜 말일 수 있어 버리지 않는다.
+    public static bool IsKnownHallucination(string text)
+    {
+        var bare = Bare(text);
+        return bare.Length > 0 && KnownHallucinations.Any(known => Bare(known) == bare);
+
+        static string Bare(string s) => new(s.Where(char.IsLetterOrDigit).ToArray());
+    }
+
     public string? ModelProblem(string? modelPath, string? vaultRoot)
     {
         if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
@@ -121,7 +143,7 @@ public sealed class WhisperSpeechToText : ISpeechToText
                 await foreach (var segment in processor.ProcessAsync(samples, ct))
                 {
                     var text = segment.Text.Trim();
-                    if (text.Length > 0) parts.Add(text);
+                    if (text.Length > 0 && !IsKnownHallucination(text)) parts.Add(text);
                 }
                 return string.Join(" ", parts);
             }, ct);

@@ -113,6 +113,21 @@ public class VoiceNativeTests
     public void 처리_창은_조각_길이_더하기_3초(double seconds, int expected)
         => Assert.Equal(expected, WhisperSpeechToText.AudioContextFor(seconds));
 
+    [Theory]
+    [InlineData("이 시각 세계였습니다.", true)]
+    [InlineData(" 이시각 세계였습니다! ", true)]                // 공백 · 문장부호는 보지 않는다
+    [InlineData("- 이 시각 세계였습니다", true)]
+    [InlineData("다음 영상에서 만나요.", true)]
+    [InlineData("시청해주셔서 감사합니다", true)]
+    [InlineData("구독과 좋아요 부탁드립니다.", true)]
+    [InlineData("감사합니다.", false)]                          // 회의에서 실제로 하는 말
+    [InlineData("오늘 이 시각 세계였습니다 라는 코너를 봤어요", false)]   // 섞여 있으면 진짜 말일 수 있다
+    [InlineData("다음 영상에서 만나요 라고 끝났다", false)]
+    [InlineData("...", false)]
+    [InlineData("", false)]
+    public void 알려진_지어내기_문장은_통째일_때만_버린다(string text, bool drop)
+        => Assert.Equal(drop, WhisperSpeechToText.IsKnownHallucination(text));
+
     [Fact]
     public void 스레드는_1에서_8()
         => Assert.InRange(WhisperSpeechToText.Threads, 1, 8);
@@ -208,6 +223,14 @@ public class VoiceNativeTests
         foreach (var name in new[] { "silence", "noise" })
             Assert.Empty(Chunks(Path.Combine(wavs, name + ".wav")));
 
+        // 조각 나누기를 건너뛰고 무음 · 잡음을 통째로 넣어도 알려진 방송 문장은 글자로 나오지 않는다 (D-195).
+        // 거르기 전에는 무음 → 「감사합니다」 · 「이 시각 세계였습니다」, 잡음 → 「다음 영상에서 만나요」였다 [실측 — research 0-1절]
+        foreach (var name in new[] { "silence", "noise" })
+        {
+            var text = await stt.TranscribeAsync(Samples(Path.Combine(wavs, name + ".wav")), CancellationToken.None);
+            Assert.DoesNotContain(WhisperSpeechToText.KnownHallucinations, known => text.Contains(known));
+        }
+
         foreach (var name in new[] { "s1", "s2", "s3", "s4" })
         {
             var chunks = Chunks(Path.Combine(wavs, name + ".wav"));
@@ -227,12 +250,17 @@ public class VoiceNativeTests
         }
     }
 
-    private static List<float[]> Chunks(string wavPath)
+    private static float[] Samples(string wavPath)
     {
         var bytes = File.ReadAllBytes(wavPath);
         var samples = new float[(bytes.Length - 44) / 2];
         for (var i = 0; i < samples.Length; i++) samples[i] = BitConverter.ToInt16(bytes, 44 + i * 2) / 32768f;
+        return samples;
+    }
 
+    private static List<float[]> Chunks(string wavPath)
+    {
+        var samples = Samples(wavPath);
         var chunker = new SpeechChunker();
         var chunks = new List<float[]>();
         chunker.ChunkReady += chunks.Add;

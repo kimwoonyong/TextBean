@@ -43,9 +43,13 @@ public sealed class DictationController : IDictation
         _vaultRoot = vaultRoot;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        // 상태 줄 시계 — 듣는 동안만 돈다
-        _clock = new DispatcherTimer(DispatcherPriority.Background, _dispatcher) { Interval = TimeSpan.FromSeconds(1) };
-        _clock.Tick += (_, _) => Raise();
+        // 상태 줄 시계와 입력 크기 막대 — 듣는 동안만 돈다. 막대는 0.2초 사이 가장 큰 소리를 보인다 (D-196)
+        _clock = new DispatcherTimer(DispatcherPriority.Background, _dispatcher) { Interval = TimeSpan.FromMilliseconds(200) };
+        _clock.Tick += (_, _) =>
+        {
+            _decibels = _session?.TakePeakDecibels() ?? double.NegativeInfinity;
+            Raise();
+        };
 
         recorder.Samples += OnSamples;
         recorder.Failed += OnRecorderFailed;
@@ -55,6 +59,9 @@ public sealed class DictationController : IDictation
     public bool IsPreparing => _session?.Preparing ?? false;
     public int Pending => _session?.Pending ?? 0;
     public TimeSpan Elapsed => _session?.Clock.Elapsed ?? TimeSpan.Zero;
+    public double InputDecibels => _session is { State: DictationState.Listening } ? _decibels : double.NegativeInfinity;
+
+    private double _decibels = double.NegativeInfinity;
     public object? Target => _session?.Tab;
 
     public event EventHandler? StateChanged;
@@ -295,9 +302,35 @@ public sealed class DictationController : IDictation
         {
             lock (_gate)
             {
-                if (_listening) _chunker.Push(samples);
+                if (_listening)
+                {
+                    _peakLevel = Math.Max(_peakLevel, Rms(samples));
+                    _chunker.Push(samples);
+                }
             }
             Array.Clear(samples);
+        }
+
+        /// 마지막으로 읽은 뒤 들어온 소리 중 가장 큰 크기(dBFS)를 돌려주고 다시 센다. UI 스레드에서 읽는다.
+        public double TakePeakDecibels()
+        {
+            float peak;
+            lock (_gate)
+            {
+                peak = _peakLevel;
+                _peakLevel = 0;
+            }
+            return peak > 0 ? 20 * Math.Log10(peak) : double.NegativeInfinity;
+        }
+
+        private float _peakLevel;
+
+        private static float Rms(float[] samples)
+        {
+            if (samples.Length == 0) return 0;
+            double sum = 0;
+            foreach (var sample in samples) sum += (double)sample * sample;
+            return (float)Math.Sqrt(sum / samples.Length);
         }
 
         /// 듣기를 끝내고 말하던 조각까지 큐에 넣는다.

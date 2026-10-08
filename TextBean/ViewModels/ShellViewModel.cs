@@ -361,13 +361,26 @@ public sealed class ShellViewModel : ObservableObject, IDisposable
 
             var parts = new List<string>
             {
-                dictation.State == DictationState.Listening ? $"● 듣는 중 {dictation.Elapsed:m\\:ss}" : "마무리 중",
+                dictation.State == DictationState.Listening
+                    ? $"● 듣는 중 {dictation.Elapsed:m\\:ss} · {LevelBars(dictation.InputDecibels)}"
+                    : "마무리 중",
                 $"「{(dictation.Target as EditorViewModel)?.TabTitle}」"
             };
             if (dictation.IsPreparing) parts.Add("준비 중");
             if (dictation.Pending > 0) parts.Add($"받아쓰는 중 {dictation.Pending}");
             return string.Join(" · ", parts);
         }
+    }
+
+    /// <summary>
+    /// 입력 크기 막대 5칸 (D-196). -60dB 이하 0칸 ~ -20dB 이상 5칸, 8dB 마다 한 칸.
+    /// 노트북 마이크로 앞에서 말하면 약 -50~-35dB(1~3칸)였다 [계산 — 진단 녹음 크기 100~600].
+    /// </summary>
+    public static string LevelBars(double decibels)
+    {
+        var filled = double.IsNegativeInfinity(decibels) ? 0 : Math.Clamp((int)Math.Floor((decibels + 60) / 8), 0, 5);
+        // ▮▯ 는 상태 줄 글꼴에서 빈 칸이 「글자 없음 상자」처럼 보였다 [렌더] — 꽉 찬 칸 · 옅은 칸 블록 글자로
+        return new string('█', filled) + new string('░', 5 - filled);
     }
 
     private async Task ToggleDictationAsync()

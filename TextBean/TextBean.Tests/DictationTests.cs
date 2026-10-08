@@ -59,8 +59,8 @@ internal sealed class DictationScene : IDisposable
         Wait(Dictation.StartAsync(Tab(index)));
     }
 
-    /// 말 하나(조각 하나가 생긴다).
-    public void Say(double seconds = 1) => Recorder.Push(Sound.Speech(seconds, pauseAfter: 1));
+    /// 말 하나(조각 하나가 생긴다). 20초 미만의 말은 3초를 쉬어야 잘린다 (D-194 회의 모드).
+    public void Say(double seconds = 2) => Recorder.Push(Sound.Speech(seconds, pauseAfter: 3.5));
 
     public void PumpUntil(Func<bool> done, string what)
     {
@@ -540,6 +540,39 @@ public class DictationTests
         scene.PumpUntil(() => scene.Dictation.State == DictationState.Idle, "쉼으로 돌아가지 않았다");
         Assert.Equal("", shell.DictationStatusText);
         Assert.Equal("조각1", RichText(scene.Rich(0)));
+    });
+
+    [Theory]
+    [InlineData(double.NegativeInfinity, "░░░░░")]
+    [InlineData(-70.0, "░░░░░")]
+    [InlineData(-52.0, "█░░░░")]          // 노트북 마이크 작은 말(16비트 약 100)
+    [InlineData(-40.0, "██░░░")]
+    [InlineData(-35.0, "███░░")]          // 노트북 마이크 보통 말(약 600)
+    [InlineData(-20.0, "█████")]
+    [InlineData(0.0, "█████")]
+    public void 입력_크기_막대는_8dB_마다_한_칸(double decibels, string expected)
+        => Assert.Equal(expected, ShellViewModel.LevelBars(decibels));
+
+    [Fact]
+    public void 듣는_동안_상태_줄_막대가_소리를_따라간다() => Run(() =>
+    {
+        using var scene = new DictationScene("메모");
+        var shell = scene.Tabs.Shell;
+        shell.UseDictation(scene.Dictation);
+        scene.Speech.TranscribeGate = new TaskCompletionSource();
+        scene.Start(0);
+
+        scene.Recorder.Push(Sound.Speech(0.3, pauseAfter: 0));                 // 큰 소리(약 -13dB)
+        scene.PumpUntil(() => shell.DictationStatusText.Contains("█████"), "막대가 차지 않았다");
+        Snapshot(scene.Tabs.Window, "voice-meter-loud");                        // TEXTBEAN_TEST_PNG 가 있을 때만
+        Assert.True(scene.Dictation.InputDecibels > -20);
+
+        scene.Recorder.Push(new float[1600]);                                   // 무음
+        scene.PumpUntil(() => shell.DictationStatusText.Contains("░░░░░"), "막대가 비지 않았다");
+
+        scene.Dictation.Cancel();
+        Assert.True(double.IsNegativeInfinity(scene.Dictation.InputDecibels));   // 쉬면 막대 없음
+        Assert.Equal("", shell.DictationStatusText);
     });
 
     [Fact]

@@ -28,6 +28,9 @@ public interface IDictation : IDisposable
 
     TimeSpan Elapsed { get; }
 
+    /// 마지막 알림 뒤로 들어온 마이크 소리 중 가장 큰 크기(dBFS, 0 이 최대). 소리가 없거나 쉬면 음의 무한대 (D-196).
+    double InputDecibels { get; }
+
     /// 받아쓴 글자가 들어갈 탭. 쉬면 null.
     object? Target { get; }
 
